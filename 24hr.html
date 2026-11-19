@@ -1,0 +1,3169 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>鈑金沖壓24hr：鐵皮屋打工人的一天</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@500;700;800&family=Noto+Sans+TC:wght@400;500;700;900&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Noto Sans TC', sans-serif;
+            overflow: hidden;
+            user-select: none;
+            -webkit-user-select: none;
+            background-color: #38bdf8;
+            margin: 0;
+            padding: 0;
+            touch-action: none;
+        }
+        .font-mono-tech {
+            font-family: 'JetBrains Mono', monospace;
+        }
+        #game-canvas {
+            display: block;
+            width: 100vw;
+            height: 100vh;
+            position: fixed;
+            top: 0;
+            left: 0;
+            z-index: 1;
+            cursor: grab;
+        }
+        #game-canvas.is-panning {
+            cursor: grabbing;
+        }
+        #game-canvas.is-rotating {
+            cursor: move;
+        }
+        .hazard-stripe {
+            background: repeating-linear-gradient(
+                -45deg,
+                #f59e0b,
+                #f59e0b 10px,
+                #1e293b 10px,
+                #1e293b 20px
+            );
+        }
+        .jargon-tag {
+            background-color: rgba(245, 158, 11, 0.22);
+            color: #fbbf24;
+            border-bottom: 2px dashed #f59e0b;
+            padding: 0 5px;
+            border-radius: 4px;
+            font-weight: 700;
+            cursor: pointer;
+            transition: all 0.18s ease;
+            display: inline-block;
+        }
+        .jargon-tag:hover {
+            background-color: rgba(245, 158, 11, 0.42);
+            transform: translateY(-1px);
+        }
+        .glass-panel {
+            background: rgba(15, 23, 42, 0.88);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border: 1px solid rgba(148, 163, 184, 0.25);
+        }
+        #joystick-zone {
+            position: fixed;
+            bottom: 24px;
+            left: 24px;
+            width: 118px;
+            height: 118px;
+            z-index: 25;
+            display: none;
+        }
+        @media (pointer: coarse), (max-width: 768px) {
+            #joystick-zone {
+                display: block;
+            }
+        }
+        ::-webkit-scrollbar {
+            width: 6px;
+        }
+        ::-webkit-scrollbar-track {
+            background: rgba(30, 41, 59, 0.4);
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #64748b;
+            border-radius: 3px;
+        }
+        @keyframes pulse-ring {
+            0% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.75); }
+            70% { transform: scale(1); box-shadow: 0 0 0 10px rgba(239, 68, 68, 0); }
+            100% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(239, 68, 68, 0); }
+        }
+        .alarm-pulse {
+            animation: pulse-ring 1.5s infinite;
+        }
+        #compass-arrow {
+            transition: transform 0.1s linear;
+        }
+        /* 手機外框樣式 */
+        .phone-bezel {
+            background: #0f172a;
+            border-radius: 44px;
+            padding: 12px;
+            box-shadow: 0 25px 60px rgba(0, 0, 0, 0.55), inset 0 0 0 2px #475569;
+            width: 100%;
+            max-width: 390px;
+            height: min(86vh, 760px);
+            display: flex;
+            flex-direction: column;
+            position: relative;
+        }
+        .phone-screen {
+            background: #ffffff;
+            color: #0f172a;
+            border-radius: 34px;
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            position: relative;
+        }
+        .dynamic-island {
+            width: 104px;
+            height: 24px;
+            background: #0f172a;
+            border-radius: 999px;
+            position: absolute;
+            top: 10px;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 20;
+        }
+    </style>
+</head>
+<body class="text-slate-100">
+
+    <!-- 3D 陽光綠化鐵皮屋工廠畫布 -->
+    <canvas id="game-canvas"></canvas>
+
+    <!-- ==================== 1. 開始與角色/師傅名單設定畫面 ==================== -->
+    <div id="start-screen" class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/75 backdrop-blur-md overflow-y-auto">
+        <div class="max-w-5xl w-full glass-panel rounded-2xl overflow-hidden shadow-2xl border border-slate-700 my-auto">
+            <div class="h-3 hazard-stripe"></div>
+            <div class="p-5 md:p-8">
+                <div class="flex flex-wrap items-center justify-between gap-2 mb-2">
+                    <span class="px-3 py-1 text-xs font-bold tracking-wider uppercase bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 rounded-full">
+                        陽光綠化 × 鐵皮屋傳統製造業模擬
+                    </span>
+                    <span class="text-xs text-slate-300 font-mono-tech">
+                        VER 4.0 • 11工站 220+ 題庫 / 手機通訊 / 師傅可改名
+                    </span>
+                </div>
+
+                <h1 class="text-2xl md:text-4xl font-black text-white tracking-tight mb-2">
+                    鈑金沖壓 <span class="text-amber-400 font-mono-tech">24hr</span>：<span class="text-sky-300">鐵皮屋打工人的一天</span>
+                </h1>
+                <p class="text-slate-300 text-xs md:text-base mb-5 leading-relaxed">
+                    陽光灑進綠意盎然的鐵皮屋廠區，11 大機台各有 20～30 種現場突發狀況等著你！看左上角上班時間、滑手機回群組與家人訊息，守住交期與良率吧。
+                </p>
+
+                <div class="flex flex-wrap items-center justify-between gap-2 mb-3">
+                    <h2 class="text-xs md:text-sm font-bold text-amber-300 uppercase tracking-wider">
+                        1. 選擇今日出勤職位（可直接點擊卡片中的名字修改）：
+                    </h2>
+                    <button type="button" onclick="openRosterModal(false)" class="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-600 text-xs font-bold text-sky-300 transition">
+                        👥 管理 / 修改全廠師傅名單
+                    </button>
+                </div>
+
+                <div id="start-role-cards" class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-5"></div>
+
+                <div class="bg-slate-900/90 rounded-xl p-3.5 border border-slate-800 flex flex-col lg:flex-row lg:items-center justify-between gap-2 text-xs text-slate-300">
+                    <div class="flex flex-wrap items-center gap-x-4 gap-y-1.5">
+                        <span>🖱️ <strong class="text-white">左鍵拖曳：</strong>平行移動視角</span>
+                        <span>👆 <strong class="text-white">短按地面 / WASD：</strong>走動</span>
+                        <span>🔄 <strong class="text-white">右鍵拖曳 / Shift+左鍵：</strong>3D 旋轉</span>
+                        <span>🔍 <strong class="text-white">滾輪：</strong>縮放</span>
+                        <span>📱 <strong class="text-white">手機圖示：</strong>查看群組與家人訊息</span>
+                    </div>
+                    <span class="text-amber-400 font-medium shrink-0">💡 點擊事件中的「虛線黃字」可查行話</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ==================== 2. 遊戲中頂部 HUD（含左上角上班時間與手機按鈕） ==================== -->
+    <div id="hud-layer" class="hidden fixed top-0 left-0 right-0 z-20 p-3 md:p-4 pointer-events-none">
+        <div class="max-w-6xl mx-auto flex flex-col gap-2">
+            <!-- 上排狀態列 -->
+            <div class="glass-panel rounded-xl p-3 shadow-lg flex flex-wrap items-center justify-between gap-3 pointer-events-auto">
+                <!-- 左上角：醒目上班時間 + 手機按鈕 + 角色資訊 -->
+                <div class="flex items-center gap-3">
+                    <div class="bg-slate-900/95 border border-slate-700 rounded-xl px-3 py-1.5 flex items-center gap-2.5 shadow-inner">
+                        <div>
+                            <div class="text-[10px] uppercase tracking-wider text-emerald-400 font-bold">上班時間</div>
+                            <div id="hud-time" class="text-xl md:text-2xl font-mono-tech font-extrabold text-white leading-none">08:00</div>
+                        </div>
+                        <button type="button" onclick="openPhoneModal()" class="relative w-10 h-10 rounded-xl bg-sky-500/20 hover:bg-sky-500/35 border border-sky-400/50 flex items-center justify-center text-xl transition transform active:scale-95" title="打開廠內與家人手機訊息">
+                            📱
+                            <span id="phone-unread-badge" class="hidden -top-1.5 -right-1.5 absolute min-w-[18px] h-[18px] px-1 rounded-full bg-rose-500 text-white text-[10px] font-mono-tech font-bold flex items-center justify-center shadow">3</span>
+                        </button>
+                    </div>
+
+                    <div>
+                        <div class="flex items-center gap-2 flex-wrap">
+                            <span id="hud-role-icon" class="text-base">🔧</span>
+                            <span id="hud-role-display" class="font-bold text-sm text-white">阿明師（現場技術師傅）</span>
+                            <span id="hud-event-count" class="text-xs font-mono-tech px-2 py-0.5 rounded bg-slate-800 text-amber-400 border border-slate-700">事件 1/5</span>
+                        </div>
+                        <div id="hud-sub-hint" class="text-xs text-slate-300 mt-0.5 truncate max-w-[240px] sm:max-w-xs">
+                            ☀️ 陽光普照，鐵皮廠區正常運作中
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 中間：交期進度與現場壓力 -->
+                <div class="flex-1 min-w-[210px] max-w-md grid grid-cols-2 gap-3">
+                    <div>
+                        <div class="flex justify-between text-xs mb-1">
+                            <span class="text-slate-300 font-medium">📦 今日交期</span>
+                            <span id="hud-progress-text" class="font-mono-tech font-bold text-emerald-400">15%</span>
+                        </div>
+                        <div class="w-full h-2.5 bg-slate-800 rounded-full overflow-hidden border border-slate-700">
+                            <div id="hud-progress-bar" class="h-full bg-gradient-to-r from-emerald-500 to-teal-400 transition-all duration-500" style="width: 15%"></div>
+                        </div>
+                    </div>
+
+                    <div>
+                        <div class="flex justify-between text-xs mb-1">
+                            <span class="text-slate-300 font-medium">🔥 現場壓力</span>
+                            <span id="hud-stress-text" class="font-mono-tech font-bold text-amber-400">20%</span>
+                        </div>
+                        <div class="w-full h-2.5 bg-slate-800 rounded-full overflow-hidden border border-slate-700">
+                            <div id="hud-stress-bar" class="h-full bg-gradient-to-r from-amber-500 to-rose-500 transition-all duration-500" style="width: 20%"></div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 右側：視角、師傅改名、行話百科、音效 -->
+                <div class="flex items-center gap-1.5 sm:gap-2 flex-wrap">
+                    <button id="btn-follow-lock" type="button" onclick="toggleFollowLock()" class="px-2.5 py-2 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-600 text-xs font-bold text-emerald-300 flex items-center gap-1 transition" title="切換是否跟隨角色">
+                        <span id="follow-lock-icon">🔓</span>
+                        <span id="follow-lock-label" class="hidden md:inline">自由平移</span>
+                    </button>
+                    <button type="button" onclick="resetCameraView()" class="px-2.5 py-2 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-600 text-xs font-bold text-slate-200 flex items-center gap-1 transition" title="重設視角">
+                        <span>🎯</span>
+                        <span class="hidden lg:inline">重設視角</span>
+                    </button>
+                    <button type="button" onclick="openRosterModal(true)" class="px-2.5 py-2 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-600 text-xs font-bold text-sky-300 flex items-center gap-1 transition" title="修改師傅名字">
+                        <span>👥</span>
+                        <span class="hidden sm:inline">師傅改名</span>
+                    </button>
+                    <button type="button" onclick="toggleGlossaryModal(true)" class="px-2.5 py-2 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-600 text-xs font-bold text-amber-300 flex items-center gap-1 transition">
+                        <span>📖</span>
+                        <span class="hidden sm:inline">行話</span>
+                    </button>
+                    <button id="btn-mute" type="button" onclick="toggleAudio()" class="p-2 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-600 text-xs text-slate-300 transition" title="切換音效">
+                        🔊
+                    </button>
+                </div>
+            </div>
+
+            <!-- 任務指引橫幅 -->
+            <div id="quest-banner" class="glass-panel rounded-xl px-4 py-2.5 border-l-4 border-l-amber-400 flex items-center justify-between gap-2 shadow-md pointer-events-auto">
+                <div class="flex items-center gap-2.5 text-xs md:text-sm min-w-0">
+                    <span class="inline-block w-2.5 h-2.5 rounded-full bg-red-500 alarm-pulse shrink-0"></span>
+                    <div class="w-6 h-6 rounded-full bg-slate-800 border border-amber-500/50 flex items-center justify-center shrink-0" title="異常機台方向指引">
+                        <span id="compass-arrow" class="text-amber-400 text-xs font-black inline-block">➤</span>
+                    </div>
+                    <span class="text-slate-400 font-bold shrink-0 hidden sm:inline">現場警報：</span>
+                    <span id="quest-target-text" class="text-white font-medium truncate">請前往異常工站處理突發狀況！</span>
+                </div>
+                <button type="button" onclick="autoWalkToCurrentTarget()" class="shrink-0 px-2.5 py-1 rounded bg-amber-500/20 hover:bg-amber-500/30 border border-amber-500/50 text-amber-300 text-xs font-bold transition">
+                    自動走過去 ➔
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ==================== 3. 靠近互動提示按鈕 ==================== -->
+    <div id="interact-prompt" class="hidden fixed bottom-24 left-1/2 -translate-x-1/2 z-30">
+        <button type="button" onclick="triggerCurrentInteraction()" class="glass-panel px-5 py-3 rounded-full border-2 border-amber-400 shadow-2xl flex items-center gap-3 hover:scale-105 active:scale-95 transition transform">
+            <span class="w-7 h-7 rounded-full bg-amber-400 text-slate-950 font-black flex items-center justify-center text-sm">E</span>
+            <div class="text-left">
+                <div id="interact-title" class="text-sm font-bold text-white">處理機台異常</div>
+                <div class="text-[11px] text-amber-300">點擊或按 E 鍵展開現場狀況</div>
+            </div>
+        </button>
+    </div>
+
+    <!-- ==================== 4. 手機通訊介面視窗（參考附圖設計） ==================== -->
+    <div id="phone-modal" class="hidden fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-950/75 backdrop-blur-sm">
+        <div class="phone-bezel">
+            <div class="phone-screen">
+                <div class="dynamic-island"></div>
+
+                <!-- 手機頂部狀態列（顯示上班時間、訊號、電量） -->
+                <div class="px-6 pt-3 pb-2 bg-white flex items-center justify-between text-xs font-mono-tech font-bold text-slate-900 select-none">
+                    <span id="phone-status-time">08:00</span>
+                    <div class="flex items-center gap-1.5">
+                        <span>📶</span>
+                        <span>5G</span>
+                        <span class="px-1.5 py-0.5 rounded bg-slate-900 text-white text-[10px]">88%</span>
+                    </div>
+                </div>
+
+                <!-- 訊息列表視圖 -->
+                <div id="phone-list-view" class="flex-1 flex flex-col overflow-hidden">
+                    <div class="px-4 py-2.5 border-b border-slate-100 flex items-center justify-between bg-white">
+                        <h3 class="text-xl font-black text-slate-900 tracking-tight">訊息</h3>
+                        <button type="button" onclick="closePhoneModal()" class="px-3 py-1 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold transition">
+                            關閉
+                        </button>
+                    </div>
+
+                    <!-- 上排聯絡人狀態列（含「你 + 狀態」與師傅綠色 UP 氣泡） -->
+                    <div id="phone-status-strip" class="px-3 py-3 border-b border-slate-100 bg-slate-50/70 flex items-start gap-3 overflow-x-auto">
+                        <!-- 由 JS 動態渲染 -->
+                    </div>
+
+                    <!-- 聊天室列表 -->
+                    <div id="phone-chat-list" class="flex-1 overflow-y-auto divide-y divide-slate-100 bg-white">
+                        <!-- 由 JS 動態渲染 -->
+                    </div>
+                </div>
+
+                <!-- 單一對話詳情與快速回覆視圖 -->
+                <div id="phone-thread-view" class="hidden flex-1 flex flex-col overflow-hidden bg-slate-50">
+                    <div class="px-3 py-2.5 bg-white border-b border-slate-200 flex items-center justify-between gap-2">
+                        <button type="button" onclick="backToPhoneList()" class="px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-slate-200 text-xs font-bold text-slate-700">
+                            ‹ 返回
+                        </button>
+                        <div id="phone-thread-title" class="text-sm font-bold text-slate-900 truncate">聊天室</div>
+                        <button type="button" onclick="closePhoneModal()" class="px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-slate-200 text-xs font-bold text-slate-600">
+                            關閉
+                        </button>
+                    </div>
+
+                    <div id="phone-thread-messages" class="flex-1 overflow-y-auto p-3.5 space-y-2.5">
+                        <!-- 訊息泡泡 -->
+                    </div>
+
+                    <div id="phone-quick-replies" class="p-3 bg-white border-t border-slate-200 space-y-1.5">
+                        <!-- 快速回覆按鈕 -->
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ==================== 5. 現場突發事件決策視窗 ==================== -->
+    <div id="event-modal" class="hidden fixed inset-0 z-40 flex items-center justify-center p-4 bg-slate-950/75 backdrop-blur-sm overflow-y-auto">
+        <div class="max-w-2xl w-full glass-panel rounded-2xl overflow-hidden shadow-2xl border border-slate-600 my-auto">
+            <div class="bg-slate-900 px-5 py-3 border-b border-slate-700 flex items-center justify-between flex-wrap gap-2">
+                <div class="flex items-center gap-2">
+                    <span class="px-2.5 py-0.5 text-xs font-bold rounded bg-red-500/20 text-red-400 border border-red-500/40">
+                        ⚠️ 鐵皮屋現場突發狀況
+                    </span>
+                    <span id="event-zone-name" class="text-xs text-slate-400 font-mono-tech">區域：氣壓沖床區</span>
+                </div>
+                <span id="event-npc-tag" class="text-xs text-amber-300 font-bold">通報人：阿明師</span>
+            </div>
+
+            <div class="p-5 md:p-6">
+                <h3 id="event-title" class="text-xl md:text-2xl font-black text-white mb-3"></h3>
+                <div id="event-desc" class="bg-slate-900/90 border border-slate-700/80 rounded-xl p-4 text-sm md:text-base text-slate-200 leading-relaxed mb-4"></div>
+
+                <div id="inline-jargon-box" class="hidden mb-4 p-3 rounded-xl bg-amber-500/10 border border-amber-500/40 text-xs md:text-sm text-amber-200 flex items-start justify-between gap-3">
+                    <div>
+                        <span class="font-bold text-amber-400" id="inline-jargon-title">📖 行話白話文：</span>
+                        <span id="inline-jargon-text"></span>
+                    </div>
+                    <button type="button" onclick="document.getElementById('inline-jargon-box').classList.add('hidden')" class="text-amber-400 hover:text-white font-bold">✕</button>
+                </div>
+
+                <div id="event-options" class="space-y-2.5"></div>
+
+                <div id="event-feedback" class="hidden mt-4 p-4 rounded-xl bg-slate-800 border border-slate-600">
+                    <div class="flex items-center gap-2 mb-1.5">
+                        <span id="feedback-icon" class="text-lg">✅</span>
+                        <span id="feedback-heading" class="font-bold text-white text-sm md:text-base">處置結果</span>
+                    </div>
+                    <p id="feedback-text" class="text-xs md:text-sm text-slate-300 leading-relaxed mb-3"></p>
+                    <div id="feedback-stats" class="flex flex-wrap gap-2 text-xs font-mono-tech mb-4"></div>
+                    <button type="button" onclick="proceedNextEvent()" class="w-full py-3 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-sm transition shadow-lg">
+                        繼續巡視鐵皮屋產線 ➔
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ==================== 6. 師傅與角色名單修改視窗 ==================== -->
+    <div id="roster-modal" class="hidden fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm overflow-y-auto">
+        <div class="max-w-2xl w-full glass-panel rounded-2xl overflow-hidden shadow-2xl border border-slate-700 flex flex-col max-h-[88vh] my-auto">
+            <div class="px-5 py-4 bg-slate-900 border-b border-slate-700 flex items-center justify-between">
+                <div>
+                    <h3 class="text-lg font-bold text-sky-300 flex items-center gap-2">
+                        <span>👥</span> 鐵皮屋師傅與角色名單設定
+                    </h3>
+                    <p class="text-xs text-slate-400 mt-0.5">修改後會即時更新 3D 頭頂名牌、手機聯絡人與對話劇本，並自動保存。</p>
+                </div>
+                <button type="button" onclick="closeRosterModal()" class="w-8 h-8 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 flex items-center justify-center font-bold">✕</button>
+            </div>
+
+            <div id="roster-list" class="p-5 overflow-y-auto space-y-3"></div>
+
+            <div class="px-5 py-3.5 bg-slate-900/95 border-t border-slate-800 flex flex-wrap items-center justify-between gap-3">
+                <button type="button" onclick="restoreDefaultNames()" class="px-3.5 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-600 text-xs font-bold text-slate-300 transition">
+                    ↺ 恢復預設名字
+                </button>
+                <button type="button" onclick="saveRosterNames()" class="px-5 py-2 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-xs sm:text-sm transition shadow-lg">
+                    💾 儲存並套用名字
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ==================== 7. 行話小百科視窗 ==================== -->
+    <div id="glossary-modal" class="hidden fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm">
+        <div class="max-w-2xl w-full glass-panel rounded-2xl overflow-hidden shadow-2xl border border-slate-700 flex flex-col max-h-[85vh]">
+            <div class="px-5 py-4 bg-slate-900 border-b border-slate-700 flex items-center justify-between">
+                <h3 class="text-lg font-bold text-amber-400 flex items-center gap-2">
+                    <span>📖</span> 沖壓、雷射與二次加工「現場行話小百科」
+                </h3>
+                <button type="button" onclick="toggleGlossaryModal(false)" class="w-8 h-8 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 flex items-center justify-center font-bold">✕</button>
+            </div>
+            <div id="glossary-list" class="p-5 overflow-y-auto space-y-3 text-sm"></div>
+        </div>
+    </div>
+
+    <!-- ==================== 8. 今日出勤結算報告卡 ==================== -->
+    <div id="result-modal" class="hidden fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/90 backdrop-blur-md overflow-y-auto">
+        <div class="max-w-lg w-full glass-panel rounded-2xl overflow-hidden shadow-2xl border-2 border-amber-500/50 my-auto">
+            <div class="h-3 hazard-stripe"></div>
+            <div class="p-6 text-center">
+                <div class="inline-block px-3 py-1 rounded-full bg-amber-500/20 text-amber-300 text-xs font-bold mb-2">
+                    鐵皮屋今日出勤結算報告
+                </div>
+                <div id="result-badge-emoji" class="text-5xl my-2">🏆</div>
+                <h2 id="result-title" class="text-2xl md:text-3xl font-black text-white mb-1">
+                    沖壓界人形救火隊
+                </h2>
+                <p id="result-subtitle" class="text-xs md:text-sm text-slate-400 mb-5">
+                    雖然鐵皮屋現場狀況百出，但你硬是靠經驗把交期跟品質穩住了！
+                </p>
+
+                <div class="grid grid-cols-2 gap-3 bg-slate-900/90 p-4 rounded-xl border border-slate-700 mb-5 text-left">
+                    <div>
+                        <div class="text-xs text-slate-400">出勤師傅 / 職位</div>
+                        <div id="res-role" class="text-sm font-bold text-white mt-0.5">阿明師（現場技術師傅）</div>
+                    </div>
+                    <div>
+                        <div class="text-xs text-slate-400">最終打卡下班時間</div>
+                        <div id="res-clockout" class="text-sm font-mono-tech font-bold text-amber-400 mt-0.5">18:30 (小加班)</div>
+                    </div>
+                    <div>
+                        <div class="text-xs text-slate-400">交期達成率</div>
+                        <div id="res-progress" class="text-sm font-mono-tech font-bold text-emerald-400 mt-0.5">95%</div>
+                    </div>
+                    <div>
+                        <div class="text-xs text-slate-400">出貨良率 / 壓力值</div>
+                        <div id="res-quality-stress" class="text-sm font-mono-tech font-bold text-sky-400 mt-0.5">96% / 45%</div>
+                    </div>
+                </div>
+
+                <div id="copy-toast" class="hidden mb-3 text-xs font-bold text-emerald-400 bg-emerald-500/10 border border-emerald-500/30 py-2 rounded-lg">
+                    ✅ 已複製戰績文字到剪貼簿！快貼給廠裡夥伴看看吧！
+                </div>
+
+                <div class="flex flex-col sm:flex-row gap-3">
+                    <button type="button" onclick="copyShareText()" class="flex-1 py-3 px-4 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-600 text-white font-bold text-sm transition flex items-center justify-center gap-2">
+                        <span>📋</span> 複製戰績文字
+                    </button>
+                    <button type="button" onclick="resetGame()" class="flex-1 py-3 px-4 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-sm transition shadow-lg">
+                        🔄 再戰一局
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 手機虛擬搖桿 -->
+    <div id="joystick-zone" class="rounded-full bg-slate-900/65 border-2 border-slate-600/70 backdrop-blur-sm">
+        <div id="joystick-knob" class="w-12 h-12 rounded-full bg-amber-400/95 shadow-lg border-2 border-white absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 pointer-events-none"></div>
+    </div>
+
+    <script>
+        // =========================================================================
+        // 1. 集中化師傅與角色名單設定檔 (CHARACTER_CONFIG)
+        // =========================================================================
+        const STORAGE_KEY_ROSTER = 'fab24hr_tinroof_roster_v2';
+
+        const CHARACTER_CONFIG = [
+            {
+                id: 'tech',
+                defaultName: '阿明師',
+                title: '現場技術師傅',
+                icon: '🔧',
+                shirtColor: 0x0284c7,
+                badgeColor: '#38bdf8',
+                avatarBg: '#dbeafe',
+                avatarText: '#1d4ed8',
+                statusUp: '修模中',
+                playable: true,
+                stress: 20,
+                progress: 15,
+                quality: 96,
+                bonusType: 'machine',
+                specialtyLabel: '調機與修模擔當',
+                bio: '聽機台聲音就知道模具哪裡不對勁。擅長處理下死點偏移、跳料、模具磨損與首件調機。',
+                statText: '專長：機台維修 / 良率'
+            },
+            {
+                id: 'pmc',
+                defaultName: '志偉',
+                title: '廠務生管 / 老闆',
+                icon: '📋',
+                shirtColor: 0xdc2626,
+                badgeColor: '#f87171',
+                avatarBg: '#fee2e2',
+                avatarText: '#b91c1c',
+                statusUp: '排程中',
+                playable: true,
+                stress: 30,
+                progress: 25,
+                quality: 92,
+                bonusType: 'schedule',
+                specialtyLabel: '排程與外包調度',
+                bio: '電話接不完、排程白板擦了又改。擅長應付急件插單、催促外包雷射廠、調度貨車與產線人力。',
+                statText: '專長：交期推進 / 協調'
+            },
+            {
+                id: 'qa',
+                defaultName: '佳玲',
+                title: '機構 / 品保工程師',
+                icon: '📐',
+                shirtColor: 0x9333ea,
+                badgeColor: '#c084fc',
+                avatarBg: '#f3e8ff',
+                avatarText: '#7e22ce',
+                statusUp: '量測中',
+                playable: true,
+                stress: 15,
+                progress: 15,
+                quality: 99,
+                bonusType: 'quality',
+                specialtyLabel: '圖面與公差把關',
+                bio: '游標卡尺與高度規不離身。擅長計算展開圖 K 因子、修正折彎回彈、把關毛邊與孔位公差。',
+                statText: '專長：公差判讀 / 抗壓'
+            },
+            {
+                id: 'bender_master',
+                defaultName: '阿國',
+                title: '折床 / 雷射領班',
+                icon: '⚡',
+                shirtColor: 0xd97706,
+                badgeColor: '#fbbf24',
+                avatarBg: '#fef3c7',
+                avatarText: '#b45309',
+                statusUp: '折彎中',
+                playable: false,
+                specialtyLabel: '折彎角度與備料'
+            },
+            {
+                id: 'grinder_master',
+                defaultName: '添財伯',
+                title: '模具研磨老師傅',
+                icon: '🪨',
+                shirtColor: 0x059669,
+                badgeColor: '#34d399',
+                avatarBg: '#d1fae5',
+                avatarText: '#047857',
+                statusUp: '磨砂輪',
+                playable: false,
+                specialtyLabel: '沖頭研磨與砂輪修整'
+            },
+            {
+                id: 'sec_master',
+                defaultName: '阿豪',
+                title: '鑽孔 / 旋臂 / 攻牙師傅',
+                icon: '🔩',
+                shirtColor: 0x2563eb,
+                badgeColor: '#60a5fa',
+                avatarBg: '#e0f2fe',
+                avatarText: '#0369a1',
+                statusUp: '攻牙中',
+                playable: false,
+                specialtyLabel: '孔加工與螺紋作業'
+            },
+            {
+                id: 'weld_master',
+                defaultName: '阿宗',
+                title: '點焊 / 鉚釘組長',
+                icon: '🔥',
+                shirtColor: 0xea580c,
+                badgeColor: '#fb923c',
+                avatarBg: '#ffedd5',
+                avatarText: '#c2410c',
+                statusUp: '點焊中',
+                playable: false,
+                specialtyLabel: '電阻點焊與壓鉚螺母'
+            },
+            {
+                id: 'qc_staff',
+                defaultName: '小婷',
+                title: '現場品檢員',
+                icon: '📏',
+                shirtColor: 0xdb2777,
+                badgeColor: '#f472b6',
+                avatarBg: '#fce7f3',
+                avatarText: '#be185d',
+                statusUp: '抽檢中',
+                playable: false,
+                specialtyLabel: '扭力測試與尺寸量測'
+            }
+        ];
+
+        const characterNames = {};
+        let playerCustomStatus = '上工拼交期';
+
+        function loadCharacterNames() {
+            CHARACTER_CONFIG.forEach(cfg => {
+                characterNames[cfg.id] = cfg.defaultName;
+            });
+            try {
+                const raw = localStorage.getItem(STORAGE_KEY_ROSTER);
+                if (raw) {
+                    const saved = JSON.parse(raw);
+                    CHARACTER_CONFIG.forEach(cfg => {
+                        if (typeof saved[cfg.id] === 'string' && saved[cfg.id].trim() !== '') {
+                            characterNames[cfg.id] = saved[cfg.id].trim();
+                        }
+                    });
+                }
+            } catch (err) {
+                console.warn('無法讀取師傅名單：', err);
+            }
+        }
+
+        function persistCharacterNames() {
+            try {
+                localStorage.setItem(STORAGE_KEY_ROSTER, JSON.stringify(characterNames));
+            } catch (err) {
+                console.warn('無法儲存師傅名單：', err);
+            }
+        }
+
+        function getCharName(id) {
+            if (characterNames[id]) return characterNames[id];
+            const found = CHARACTER_CONFIG.find(c => c.id === id);
+            return found ? found.defaultName : '師傅';
+        }
+
+        function getCharById(id) {
+            return CHARACTER_CONFIG.find(c => c.id === id);
+        }
+
+        function escapeHtml(str) {
+            return String(str)
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;');
+        }
+
+        function renderStartRoleCards() {
+            const container = document.getElementById('start-role-cards');
+            const playableRoles = CHARACTER_CONFIG.filter(c => c.playable);
+
+            container.innerHTML = playableRoles.map(role => {
+                const currentName = getCharName(role.id);
+                const stressBadgeClass = role.stress <= 15
+                    ? 'bg-sky-500/20 text-sky-300'
+                    : (role.stress <= 20 ? 'bg-emerald-500/20 text-emerald-300' : 'bg-amber-500/20 text-amber-300');
+
+                return `
+                    <div onclick="selectRole('${role.id}')" class="role-card cursor-pointer group bg-slate-800/85 hover:bg-slate-800 border-2 border-slate-700 hover:border-amber-400 rounded-xl p-5 transition-all duration-200 flex flex-col justify-between">
+                        <div>
+                            <div class="flex items-center justify-between mb-3">
+                                <span class="text-3xl">${role.icon}</span>
+                                <span class="text-xs font-mono-tech px-2 py-1 rounded ${stressBadgeClass}">初始壓力 ${role.stress}%</span>
+                            </div>
+
+                            <div class="mb-2" onclick="event.stopPropagation()">
+                                <label class="block text-[11px] text-slate-400 mb-1">出勤名字（可修改）：</label>
+                                <input
+                                    type="text"
+                                    maxlength="12"
+                                    value="${escapeHtml(currentName)}"
+                                    onchange="updateSingleCharacterName('${role.id}', this.value)"
+                                    onkeydown="if(event.key==='Enter') { this.blur(); }"
+                                    class="w-full px-2.5 py-1.5 rounded-lg bg-slate-950/90 border border-slate-600 focus:border-amber-400 focus:outline-none text-sm font-bold text-amber-300"
+                                    placeholder="輸入名字..."
+                                />
+                            </div>
+
+                            <h3 class="text-base font-bold text-white group-hover:text-amber-300 mb-0.5">${escapeHtml(role.title)}</h3>
+                            <p class="text-xs text-sky-300 font-medium mb-2.5">${escapeHtml(role.specialtyLabel)}</p>
+                            <p class="text-xs text-slate-300 leading-relaxed mb-4">${escapeHtml(role.bio)}</p>
+                        </div>
+
+                        <div class="pt-3 border-t border-slate-700/80 flex items-center justify-between text-xs">
+                            <span class="text-slate-400">${escapeHtml(role.statText)}</span>
+                            <span class="text-amber-400 font-bold group-hover:translate-x-1 transition-transform">上工 →</span>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        let wasPausedBeforeRoster = false;
+
+        function openRosterModal(pauseGame) {
+            SoundFX.click();
+            wasPausedBeforeRoster = pauseGame && gameState.started && !gameState.paused;
+            if (wasPausedBeforeRoster) gameState.paused = true;
+
+            const listEl = document.getElementById('roster-list');
+            listEl.innerHTML = CHARACTER_CONFIG.map(cfg => {
+                const nameVal = getCharName(cfg.id);
+                return `
+                    <div class="p-3.5 rounded-xl bg-slate-800/80 border border-slate-700 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                        <div class="flex items-center gap-3 min-w-0">
+                            <span class="text-2xl shrink-0">${cfg.icon}</span>
+                            <div class="min-w-0">
+                                <div class="text-sm font-bold text-white truncate">${escapeHtml(cfg.title)}</div>
+                                <div class="text-xs text-slate-400 truncate">${escapeHtml(cfg.specialtyLabel)}（預設：${escapeHtml(cfg.defaultName)}）</div>
+                            </div>
+                        </div>
+                        <input
+                            type="text"
+                            maxlength="12"
+                            data-roster-id="${cfg.id}"
+                            value="${escapeHtml(nameVal)}"
+                            class="roster-name-input w-36 sm:w-40 px-3 py-1.5 rounded-lg bg-slate-950 border border-slate-600 focus:border-amber-400 focus:outline-none text-sm font-bold text-amber-300"
+                        />
+                    </div>
+                `;
+            }).join('');
+
+            document.getElementById('roster-modal').classList.remove('hidden');
+        }
+
+        function closeRosterModal() {
+            SoundFX.click();
+            document.getElementById('roster-modal').classList.add('hidden');
+            if (wasPausedBeforeRoster) {
+                gameState.paused = false;
+                wasPausedBeforeRoster = false;
+            }
+        }
+
+        function updateSingleCharacterName(id, newVal) {
+            const cfg = getCharById(id);
+            const trimmed = (newVal || '').trim();
+            characterNames[id] = trimmed || (cfg ? cfg.defaultName : '師傅');
+            persistCharacterNames();
+            refreshAllNameBindings();
+        }
+
+        function saveRosterNames() {
+            document.querySelectorAll('.roster-name-input').forEach(input => {
+                const id = input.getAttribute('data-roster-id');
+                const cfg = getCharById(id);
+                const val = input.value.trim();
+                characterNames[id] = val || (cfg ? cfg.defaultName : '師傅');
+            });
+            persistCharacterNames();
+            refreshAllNameBindings();
+            SoundFX.success();
+            closeRosterModal();
+        }
+
+        function restoreDefaultNames() {
+            CHARACTER_CONFIG.forEach(cfg => {
+                characterNames[cfg.id] = cfg.defaultName;
+            });
+            persistCharacterNames();
+            document.querySelectorAll('.roster-name-input').forEach(input => {
+                const id = input.getAttribute('data-roster-id');
+                const cfg = getCharById(id);
+                if (cfg) input.value = cfg.defaultName;
+            });
+            refreshAllNameBindings();
+            SoundFX.click();
+        }
+
+        function refreshAllNameBindings() {
+            renderStartRoleCards();
+            rebuild3DNameSprites();
+            if (gameState.role) {
+                document.getElementById('hud-role-display').textContent = `${getCharName(gameState.role.id)}（${gameState.role.title}）`;
+            }
+            if (gameState.started && gameState.eventQueue.length > 0) {
+                const ev = gameState.eventQueue[gameState.currentEventIndex];
+                if (ev) {
+                    document.getElementById('event-npc-tag').textContent = `通報人：${getCharName(ev.npcId)}`;
+                }
+            }
+            if (!document.getElementById('phone-modal').classList.contains('hidden')) {
+                renderPhoneUI();
+            }
+        }
+
+        // =========================================================================
+        // 2. Web Audio API 音效系統
+        // =========================================================================
+        const SoundFX = {
+            ctx: null,
+            muted: false,
+            init() {
+                if (!this.ctx) {
+                    const AudioContext = window.AudioContext || window.webkitAudioContext;
+                    this.ctx = new AudioContext();
+                }
+                if (this.ctx.state === 'suspended') {
+                    this.ctx.resume();
+                }
+            },
+            playTone(freq, type, duration, vol = 0.12) {
+                if (this.muted) return;
+                this.init();
+                const osc = this.ctx.createOscillator();
+                const gain = this.ctx.createGain();
+                osc.type = type;
+                osc.frequency.setValueAtTime(freq, this.ctx.currentTime);
+                gain.gain.setValueAtTime(vol, this.ctx.currentTime);
+                gain.gain.exponentialRampToValueAtTime(0.001, this.ctx.currentTime + duration);
+                osc.connect(gain);
+                gain.connect(this.ctx.destination);
+                osc.start();
+                osc.stop(this.ctx.currentTime + duration);
+            },
+            click() { this.playTone(520, 'sine', 0.08, 0.1); },
+            alarm() {
+                this.playTone(880, 'sawtooth', 0.15, 0.1);
+                setTimeout(() => this.playTone(660, 'sawtooth', 0.2, 0.1), 160);
+            },
+            success() {
+                this.playTone(523.25, 'triangle', 0.12, 0.12);
+                setTimeout(() => this.playTone(659.25, 'triangle', 0.12, 0.12), 110);
+                setTimeout(() => this.playTone(783.99, 'triangle', 0.25, 0.14), 220);
+            },
+            warning() {
+                this.playTone(300, 'square', 0.18, 0.1);
+                setTimeout(() => this.playTone(240, 'square', 0.25, 0.1), 180);
+            },
+            spark() {
+                if (this.muted) return;
+                this.playTone(1200 + Math.random() * 800, 'sawtooth', 0.04, 0.02);
+            }
+        };
+
+        function toggleAudio() {
+            SoundFX.muted = !SoundFX.muted;
+            document.getElementById('btn-mute').textContent = SoundFX.muted ? '🔇' : '🔊';
+        }
+
+        // =========================================================================
+        // 3. 鈑金、沖壓、雷射與二次加工行話小百科
+        // =========================================================================
+        const JARGON_DICT = {
+            "下死點": "沖床滑塊往下衝到最底端的位置。調太深會壓傷模具（撞模），調太淺則板材切不斷、毛邊變大。",
+            "連續模": "在一副模具內安排多個工站（沖孔、切邊、折彎、下料），料帶每送進一格就完成一個零件，適合大量生產。",
+            "跳料": "沖孔時被沖下的廢料屑沒有順利掉進下模孔，反而被沖頭帶上來黏在模面上，下一衝程就會把成品壓出凹坑。",
+            "掛渣": "雷射切割時，熔化的金屬沒有被高壓氣體完全吹走，凝固在板材底部的硬塊，折彎前通常需要打磨去除。",
+            "折彎回彈": "金屬板材被折床壓彎後，因為材料彈性，鬆開模具時角度會稍微彈回去（例如設定 90 度彈回變 92.5 度）。",
+            "K因子": "計算鈑金折彎展開長度的重要係數，代表板材折彎時內部中性軸的位置比例，不同材質與厚度有不同數值。",
+            "V槽": "折床下模上的 V 形凹槽開口寬度。一般會依板厚選擇合適的 V 槽寬度，影響折彎力道、最小折邊與壓痕。",
+            "展開圖": "把立體的鈑金成品攤平成一片 2D 平面板材的工程圖面，必須扣除折彎伸長量才不會做錯尺寸。",
+            "公差": "圖面上允許的尺寸誤差範圍（例如 ±0.1mm），超出公差就可能導致客戶端螺絲鎖不上或機構干涉。",
+            "沖頭研磨": "沖壓模具的沖頭長期使用刃口變鈍後，拆下放到平面研磨機上磨平端面，使其恢復鋒利的日常保養作業。",
+            "砂輪修整": "平面研磨機的砂輪磨久了表面會被鐵屑堵塞變鈍，需用鑽石修整筆刮除表層，否則研磨時會產生高溫燒傷工件。",
+            "旋臂鎖緊": "旋臂鑽床將主軸頭移動到大型工件孔位上方後，必須確實鎖緊立柱與旋臂夾緊裝置，否則下鑽時鑽頭會偏擺走位。",
+            "中心沖": "在鑽孔前先用尖銳鋼沖在金屬表面敲出一個小凹點，防止鑽頭剛接觸光滑板面時滑開偏心。",
+            "壓鉚螺母": "透過鉚釘機的均勻壓力，將帶有齒紋的螺母強行壓入鈑金預沖孔中，讓薄板也能擁有高強度的內螺紋。",
+            "假焊": "電阻點焊時因為電流不足、時間太短或電極頭氧化，表面看起來有焊點，但兩片金屬其實沒有真正熔合，一掰就開。",
+            "盲孔攻牙": "底部沒有貫穿的孔洞進行內螺紋加工。切屑容易堆積在孔底把絲攻卡死折斷，必須使用螺旋槽絲攻並定期退屑。",
+            "首件檢驗": "每次換模、調機或換新批材料後，正式量產前做的第一批樣品全尺寸量測，確認 OK 才能放行量產。",
+            "急件插單": "客戶臨時要求提前交貨的緊急訂單，生管必須打亂原本排程、協調機台換線或加班趕工。",
+            "特採": "特殊採購／讓步接收。當產品有輕微不符規格（但不影響組裝功能）時，與客戶協商同意照常出貨的流程。"
+        };
+
+        function renderGlossaryList() {
+            const container = document.getElementById('glossary-list');
+            container.innerHTML = Object.entries(JARGON_DICT).map(([term, desc]) => `
+                <div class="p-3.5 rounded-xl bg-slate-800/80 border border-slate-700">
+                    <div class="font-bold text-amber-400 mb-1">📌 ${escapeHtml(term)}</div>
+                    <div class="text-slate-300 text-xs md:text-sm leading-relaxed">${escapeHtml(desc)}</div>
+                </div>
+            `).join('');
+        }
+
+        function toggleGlossaryModal(show) {
+            SoundFX.click();
+            const modal = document.getElementById('glossary-modal');
+            if (show) {
+                renderGlossaryList();
+                modal.classList.remove('hidden');
+            } else {
+                modal.classList.add('hidden');
+            }
+        }
+
+        function showInlineJargon(term) {
+            SoundFX.click();
+            const desc = JARGON_DICT[term] || "現場常用工藝名詞。";
+            document.getElementById('inline-jargon-title').textContent = `📖 【${term}】白話解釋：`;
+            document.getElementById('inline-jargon-text').textContent = desc;
+            document.getElementById('inline-jargon-box').classList.remove('hidden');
+        }
+
+        function formatWithJargon(text) {
+            let formatted = escapeHtml(text);
+            Object.keys(JARGON_DICT).forEach(term => {
+                const regex = new RegExp(term, 'g');
+                formatted = formatted.replace(regex, `<span class="jargon-tag" onclick="showInlineJargon('${term}')">${term}</span>`);
+            });
+            return formatted;
+        }
+
+        // =========================================================================
+        // 4. 11 大工站 × 22 個獨特危機劇本（總計 242 組真實現場事件）
+        // =========================================================================
+        const STATION_META = {
+            press_200t: {
+                zoneName: '氣壓沖床區 (200T 連續模)',
+                npcId: 'tech',
+                problems: [
+                    ['下死點偏移與模具異音', '200 噸氣壓沖床高速沖壓 SUS304 支架時突然出現悶撞聲，零件切面毛邊變大，疑似連續運轉導致下死點微幅偏移。', '下死點', '公差', 15, 5, 2, 35],
+                    ['連續模跳料壓傷成品', '沖孔廢料發生跳料黏上模面，下一衝程直接把散熱片壓出凹坑，料帶送料也跟著卡頓。', '跳料', '連續模', 16, 7, 3, 35],
+                    ['料帶送料pitch跑位', '高速送料機夾爪打滑，連續模步距偏移導致孔位歪斜，再不處理整捲料帶都會報廢。', '連續模', '公差', 14, 9, 2, 30],
+                    ['模具導柱潤滑不足發熱', '連續模導柱因油路堵塞乾摩擦發熱，開合模聲音變得乾澀緊繃，再硬衝恐造成咬死。', '連續模', '下死點', 13, 8, 2, 30],
+                    ['下模排屑孔堵塞積屑', '底部排屑槽被細碎鐵屑塞滿，廢料頂不上來把下模刃口撐出裂紋。', '跳料', '公差', 15, 7, 2, 25],
+                    ['氣壓缸壓力不足導致切斷不全', '鐵皮屋空壓機管線壓降，氣壓沖床出力不足，折邊與切斷處留下毛刺未切斷。', '下死點', '公差', 14, 10, -1, 30],
+                    ['沖頭刃口崩角產生拉毛', '沖切高張力鋼板時沖頭刃口微崩，成品孔壁出現明顯拉毛刮痕。', '公差', '跳料', 15, 9, -2, 35],
+                    ['脫料板彈簧疲乏卡住', '脫料板彈簧彈力衰退，板材被沖頭帶起無法順利脫離，連續模出現卡料警報。', '連續模', '跳料', 14, 8, 1, 30],
+                    ['料捲尾端厚度公差超標', '一捲不鏽鋼料快用完時厚度微超公差，下死點沒微調導致壓痕變深。', '下死點', '公差', 16, 7, 1, 25],
+                    ['沖床飛輪煞車來令片磨損', '滑塊停機時煞車慣性變大，偶爾多衝半下差點撞傷模具定位銷。', '下死點', '連續模', 12, 12, 2, 40],
+                    ['防呆感測器誤判急停', '料帶感測器沾到油霧頻繁誤報急停，產線每十分鐘就停一次，交期壓力山大。', '連續模', '急件插單', 11, 13, 0, 25],
+                    ['沖壓油油溫升高黏度下降', '中午陽光直射鐵皮屋廠區，沖壓油溫飆升，潤滑效果下降導致成型面發澀。', '下死點', '公差', 15, 9, 0, 30],
+                    ['定位銷鬆動造成孔位偏心', '下模定位銷螺絲震動鬆脫，零件孔位整體往左偏了 0.45mm。', '公差', '首件檢驗', 14, 8, 2, 30],
+                    ['成型浮升銷高度不一致', '料帶浮升銷高低不平，送料時板材刮到下模面留下細微刮痕。', '連續模', '公差', 15, 6, 2, 25],
+                    ['模具螺絲鎖固扭力不足', '上模固定螺栓因長期震動微鬆，開模時出現輕微敲擊聲。', '連續模', '下死點', 13, 8, 2, 25],
+                    ['板材表面殘留防鏽油過多', '防鏽油太厚造成料帶打滑，送距不穩定讓折彎線位置跑掉。', '展開圖', '公差', 14, 6, 1, 20],
+                    ['衝程次數（SPM）過高導致振動', '為了趕急件插單把 SPM 拉太高，機台震動加劇讓微孔容易斷針。', '公差', '急件插單', 17, 11, -1, 25],
+                    ['下模鑲件裂縫需緊急隔離', '巡檢時發現下模鑲件有細微裂紋，若硬撐下去可能整塊碎裂報廢。', '連續模', '首件檢驗', 13, 10, 3, 40],
+                    ['廢料輸送帶卡住堆滿地', '沖床後方廢料斗滿溢卡住，鐵屑堆到走道邊緣影響安全與送料。', '跳料', '公差', 15, 7, 1, 25],
+                    ['換模後首件尺寸微偏', '剛換上新模具準備量產，首件檢驗發現折彎高度差了 0.25mm。', '首件檢驗', '下死點', 16, 7, 2, 25],
+                    ['沖床光柵安全幕灰塵干擾', '鐵皮屋粉塵飄落光柵透鏡，偶爾觸發安全保護停機。', '下死點', '公差', 14, 8, 1, 20],
+                    ['客戶臨時追加 300 片急件', '生管跑來說大客戶急件插單追加 300 片，必須在今日結算前趕出來。', '急件插單', '首件檢驗', 22, 14, 0, 35]
+                ]
+            },
+            cnc_brake: {
+                zoneName: 'CNC 折床加工區',
+                npcId: 'bender_master',
+                problems: [
+                    ['SUS304 折彎回彈角度超差', '不鏽鋼支架折完後回彈 2.5 度，90 度變成 92.5 度，組裝孔位對不起來。', '折彎回彈', '公差', 17, 7, 2, 30],
+                    ['展開圖 K 因子計算偏差', '展開圖折完尺寸比圖面短了 1.2mm，導致折邊干涉無法扣合。', '展開圖', 'K因子', 16, 8, 2, 35],
+                    ['V 槽寬度選用不當壓痕過深', '薄板用了太寬的 V 槽，或厚板用了太窄的 V 槽，折彎處出現明顯壓痕。', 'V槽', '折彎回彈', 15, 6, 2, 25],
+                    ['後擋規定位重複精度跑掉', '後擋規螺桿卡入鐵屑，折彎邊長忽長忽短，超出公差範圍。', '公差', '展開圖', 14, 9, 2, 30],
+                    ['上模刀口局部壓傷缺角', '折到帶有掛渣的板材後，上模刀口出現小缺角，折線有局部壓傷。', '掛渣', 'V槽', 14, 10, -2, 35],
+                    ['同批板材材質硬度略有差異', '同一批料換了不同卷號，折彎回彈角度不一致，需要逐批微調。', '折彎回彈', 'K因子', 16, 8, 1, 25],
+                    ['小折邊尺寸太小滑入 V 槽', '折邊長度剛好卡在 V 槽邊緣，下壓時差點滑進槽裡變形。', 'V槽', '展開圖', 15, 10, 1, 30],
+                    ['多道折彎順序錯誤造成干涉', '先折了內側高立邊，最後一道折彎時工件卡到上模折不下去。', '展開圖', '折彎回彈', 14, 9, 2, 30],
+                    ['折床油壓系統油溫偏高', '連續折彎一整個早上，油壓缸溫度升高使下死點微幅漂移。', '折彎回彈', '公差', 15, 8, 1, 25],
+                    ['板材纖維方向與折彎線平行開裂', '鋁板沿著軋延纖維方向折彎，外弧面出現細微裂紋。', '折彎回彈', 'K因子', 13, 11, -3, 35],
+                    ['兩端折彎角度不一致（段差）', '折床左右油缸同步微偏，工件左邊 90 度、右邊 91 度。', '折彎回彈', '公差', 15, 9, 2, 30],
+                    ['雷射切邊毛邊刮傷折床模具', '切割毛邊未清理就上折床，模具接觸面出現刮痕。', '掛渣', 'V槽', 14, 8, -1, 25],
+                    ['大型長件折彎下垂變形', '超過 1.8 公尺的長條鈑金折彎時末端下垂，角度量測偏大。', '折彎回彈', '展開圖', 16, 10, 1, 30],
+                    ['折彎線靠近孔位造成孔變形', '孔邊距折彎線太近，折彎拉伸讓圓孔變成橢圓形。', '展開圖', '公差', 14, 9, -2, 30],
+                    ['首件檢驗角度量測未等冷卻', '剛折完熱呼呼就量角度，冷卻後角度又回彈了一點。', '首件檢驗', '折彎回彈', 15, 6, 2, 20],
+                    ['模具中心未對齊導致偏心受力', '上下模沒有對正中心，折彎時機台發出沉悶異音。', 'V槽', '公差', 14, 8, 2, 25],
+                    ['客製化非標角度需快速試折', '客戶臨時改圖要 105 度折角，必須快速算好補償並試折首件。', '折彎回彈', '首件檢驗', 18, 10, 1, 25],
+                    ['折床腳踏開關接觸不良', '踩踏板時偶爾沒反應，影響折彎節拍與操作順暢度。', '公差', '急件插單', 13, 9, 1, 25],
+                    ['保護膜未撕除黏在模具上', 'PVC 保護膜受熱融化黏在下模 V 槽內，造成後續角度不穩。', 'V槽', '折彎回彈', 15, 7, 1, 20],
+                    ['厚板折彎噸數接近機台上限', '4mm 厚板折長件快接近折床額定噸數，需分段或調整 V 槽降低噸數。', 'V槽', '公差', 14, 11, 2, 35],
+                    ['交期緊迫需折床與沖床分流', '折床排程滿載，生管要求把部分簡單折件轉移或調整順序。', '急件插單', '展開圖', 19, 12, 0, 30],
+                    ['折完堆疊刮傷烤漆面', '成品堆放太擠相互摩擦，邊角出現細微擦傷。', '公差', '特採', 15, 8, -2, 20]
+                ]
+            },
+            laser_nct: {
+                zoneName: 'NCT / 雷射備料區',
+                npcId: 'bender_master',
+                problems: [
+                    ['外包雷射來料嚴重掛渣', '雷射切割底部殘留硬質掛渣，直接折彎會壓傷模具與刮花板面。', '掛渣', '公差', 15, 11, -1, 35],
+                    ['雷射切割起割點燒傷過大', '穿孔起割點留下一小圈燒熔黑點，剛好落在外觀面上。', '掛渣', '首件檢驗', 14, 9, -2, 30],
+                    ['板材尺寸與展開圖版本不符', '備料區拿到的板材還是舊版圖面，少開了兩個散熱孔。', '展開圖', '公差', 13, 12, 2, 35],
+                    ['不鏽鋼板材表面刮傷', '搬運板材時沒墊紙，表面出現長條刮痕，客戶要求外觀面無刮傷。', '公差', '特採', 14, 10, -3, 30],
+                    ['外包貨車延誤兩小時才到', '原定早上要上線的雷射備料還沒送達，產線面臨短暫待料。', '急件插單', '展開圖', 10, 15, 0, 40],
+                    ['氮氣壓力不足導致切面發黃', '雷射切割不鏽鋼時氮氣純度或壓力不足，切口邊緣氧化發黃。', '掛渣', '公差', 15, 8, -1, 25],
+                    ['微連接點太粗難折斷', '雷射切割留的微連接點太厚，折斷後留下明顯凸點需打磨。', '掛渣', '展開圖', 16, 7, 1, 25],
+                    ['微連接點太細零件掉落', '微連接點太小，切割中途零件掉下可能被雷射頭撞到。', '掛渣', '公差', 13, 11, -2, 30],
+                    ['板材翹曲不平影響定位', '薄板受熱後略微翹曲，放上治具或折床時靠邊不實。', '展開圖', '公差', 15, 8, 1, 25],
+                    ['混料風險：304 與 430 放一起', '備料棧板旁混放了不同材質板材，若沒核對容易用錯料。', '首件檢驗', '公差', 14, 9, 3, 25],
+                    ['小孔圓度不佳略呈椭圆', '直徑 3mm 以下小孔切割熱集中，孔圓度稍微跑掉。', '公差', '掛渣', 15, 8, 1, 25],
+                    ['排版間距太緊導致熱變形', '排料太密集，連續切割後整片板材熱膨脹變形。', '展開圖', '公差', 14, 9, 1, 30],
+                    ['備料區棧板堆放超高擋走道', '原料棧板堆得太高，推車經過視線受阻且有傾倒風險。', '急件插單', '公差', 15, 7, 1, 20],
+                    ['急件插單需優先切出樣品', '業務緊急要 20 片打樣件，必須立刻插單排入切割。', '急件插單', '首件檢驗', 18, 12, 1, 25],
+                    ['雷射保護鏡片沾染煙塵', '切割效率下降、切斷能力變弱，檢查發現保護鏡片需清潔更換。', '掛渣', '公差', 14, 8, 2, 25],
+                    ['板材厚度公差偏上限', '這批板材實測厚度比標稱厚 0.15mm，折彎與壓鉚都要注意。', '公差', '壓鉚螺母', 15, 7, 1, 25],
+                    ['打標刻字字跡模糊不清', '零件序號雷射打標太淺，後續表面處理後幾乎看不見。', '首件檢驗', '公差', 15, 6, 1, 20],
+                    ['剩餘餘料編號未標示', '切剩的大塊餘料沒貼標籤，下次找料會浪費很多時間。', '展開圖', '公差', 15, 5, 1, 20],
+                    ['外包廠多送了 50 片備品', '外包廠多切了 50 片，要決定併入庫存還是退回帳務。', '特採', '展開圖', 17, 5, 0, 15],
+                    ['板材邊緣有尖銳毛刺', '剛卸貨的板材邊緣鋒利，搬運時容易割傷手套或零件。', '掛渣', '公差', 15, 7, 1, 20],
+                    ['急件料號與圖面版次不同', '生管給的急件單是 Rev.B，但現場排程還在跑 Rev.A。', '急件插單', '展開圖', 14, 11, 2, 30],
+                    ['雨天潮濕造成黑鐵微生鏽', '空氣濕度高，未上油的黑鐵板材邊緣出現淡淡浮鏽。', '掛渣', '特採', 14, 9, -2, 25]
+                ]
+            },
+            surface_grinder: {
+                zoneName: '平面研磨機 (模具維護室)',
+                npcId: 'grinder_master',
+                problems: [
+                    ['沖頭研磨砂輪堵塞燒傷', '砂輪氣孔塞滿鐵屑未做砂輪修整，研磨沖頭時出現藍紫色燒傷痕跡。', '沖頭研磨', '砂輪修整', 15, 8, 2, 30],
+                    ['電磁吸盤吸力不足工件移位', '吸盤表面有油膜或鐵屑，研磨時工件微微滑動導致平面度跑掉。', '沖頭研磨', '公差', 14, 10, -2, 30],
+                    ['平行度超差兩端厚度不一', '磨完量測模仁兩端厚度差了 0.04mm，裝配後會受力不均。', '公差', '沖頭研磨', 15, 7, 2, 25],
+                    ['鑽石修整筆磨耗變鈍', '修整砂輪時發現鑽石筆尖端磨平，修出來的砂輪表面不夠平整。', '砂輪修整', '沖頭研磨', 14, 7, 2, 25],
+                    ['切削液噴嘴角度偏移', '冷卻液沒噴到砂輪與工件接觸點，乾磨升溫快容易退火。', '砂輪修整', '沖頭研磨', 15, 6, 2, 20],
+                    ['進刀量過大導致表面波紋', '一次進刀吃太多，磨削表面出現一圈圈波紋，粗糙度不達標。', '沖頭研磨', '公差', 15, 7, 2, 25],
+                    ['模仁退磁不完全吸附鐵屑', '磨完沒確實退磁，模仁一直吸著細鐵屑，組模時會壓出凹點。', '沖頭研磨', '跳料', 16, 6, 2, 20],
+                    ['砂輪平衡塊未調好產生震動', '換新砂輪後沒做好動平衡，運轉時有輕微嗡嗡震動聲。', '砂輪修整', '沖頭研磨', 13, 9, 2, 35],
+                    ['薄板模仁研磨翹曲變形', '薄型墊片磨削應力釋放後微微翹曲，需墊銅片或調整夾持。', '沖頭研磨', '公差', 14, 9, 1, 30],
+                    ['研磨粉塵抽風機吸力減弱', '集塵袋快滿了，研磨細粉塵散逸到模具室空氣中。', '砂輪修整', '沖頭研磨', 15, 6, 1, 20],
+                    ['沖頭長度磨過頭低於基準', '不小心多磨了 0.15mm，沖頭變短需要加墊片補償高度。', '沖頭研磨', '下死點', 13, 11, -2, 30],
+                    ['磁力吸盤殘磁未消除難取件', '關掉吸盤電源後工件還是吸得很緊，硬撬怕傷到精密基準面。', '沖頭研磨', '公差', 15, 7, 1, 20],
+                    ['工作台往復行程限位跑掉', '行程擋塊微鬆，砂輪差點擦到夾具邊緣，嚇出一身冷汗。', '砂輪修整', '沖頭研磨', 13, 10, 2, 25],
+                    ['硬質合金（鎢鋼）研磨砂輪選錯', '拿一般氧化鋁砂輪磨鎢鋼模仁，磨半天吃不太動還磨耗砂輪。', '砂輪修整', '沖頭研磨', 14, 9, 2, 30],
+                    ['工件底面毛刺未去就上吸盤', '底面有小毛刺沒用油石推平，放上吸盤就墊高了局部尺寸。', '沖頭研磨', '公差', 15, 6, 2, 20],
+                    ['急件模具需提前 1 小時完工', '產線等著這組沖頭上機，必須加快研磨節奏同時保住精度。', '沖頭研磨', '急件插單', 19, 12, 1, 25],
+                    ['量測千分錶歸零漂移', '量測前沒重新歸零，差點誤判模仁尺寸超差重磨。', '公差', '首件檢驗', 16, 6, 1, 15],
+                    ['砂輪護罩觀察窗油污模糊', '視窗被油霧遮住看不清火花與接觸點，需要擦拭清潔。', '砂輪修整', '沖頭研磨', 15, 5, 1, 15],
+                    ['兩支配對沖頭高度不一致', '成對使用的沖頭一高一低，裝上模具會造成偏心側推力。', '沖頭研磨', '公差', 15, 8, 2, 25],
+                    ['切削液有酸敗異味需更換', '冷卻水循環槽久未換水產生異味，開機時味道很重。', '砂輪修整', '沖頭研磨', 14, 7, 1, 30],
+                    ['模仁基準角倒角不均勻', '邊緣倒角大小不一，組裝定位時容易卡住。', '沖頭研磨', '公差', 15, 6, 2, 20],
+                    ['下班前需清理吸盤與機台導軌', '鐵屑掉進滑軌會加速磨損，收工前必須擦拭上油。', '砂輪修整', '沖頭研磨', 16, 5, 2, 20]
+                ]
+            },
+            radial_drill: {
+                zoneName: '旋臂鑽床加工區',
+                npcId: 'sec_master',
+                problems: [
+                    ['大型機架擴孔旋臂鎖緊微鬆', '鑽大孔時旋臂鎖緊力道不足，主軸微微偏移導致孔位跑掉 0.8mm。', '旋臂鎖緊', '公差', 15, 9, 2, 35],
+                    ['大直徑鑽頭切削震動尖叫', '鑽 22mm 孔時進給太快，鑽頭產生顫振，孔壁出現波浪紋。', '旋臂鎖緊', '公差', 14, 9, 1, 30],
+                    ['大型焊接件放置不平孔軸歪斜', '厚板焊接件底部有焊瘤，沒墊平就鑽孔導致孔軸線略微傾斜。', '旋臂鎖緊', '公差', 14, 8, 2, 30],
+                    ['升降螺桿潤滑不足卡頓', '旋臂上下升降時阻力變大，需要停下來清潔與補充潤滑油。', '旋臂鎖緊', '公差', 15, 7, 1, 25],
+                    ['鑽頭鑽穿瞬間咬刀卡死', '快鑽穿板材時沒減輕進給，鑽頭突然咬住工件差點扭斷。', '旋臂鎖緊', '公差', 14, 10, 1, 30],
+                    ['孔徑略大於圖面公差上限', '鑽頭刃口不對稱導致擴孔偏大，孔徑比標稱大了 0.12mm。', '公差', '旋臂鎖緊', 15, 8, -1, 25],
+                    ['工件太大超出工作台範圍', '超長機架一端懸空，必須用千斤頂或支架穩固支撐才安全。', '旋臂鎖緊', '公差', 15, 8, 2, 30],
+                    ['鑽孔深度控制不準盲孔過深', '深度限位擋塊沒鎖緊，鑽頭多鑽深了 2mm。', '盲孔攻牙', '公差', 14, 9, -1, 25],
+                    ['冷卻液軟管鬆脫漏水到地面', '切削液管接頭鬆脫滴到地板，走道變濕滑需立刻處理。', '旋臂鎖緊', '公差', 15, 6, 1, 20],
+                    ['莫氏錐度套筒打滑空轉', '主軸錐孔有油污或鐵屑，大扭力切削時鑽頭套筒打滑。', '旋臂鎖緊', '公差', 14, 9, 2, 25],
+                    ['孔位群距累積誤差接近上限', '連續鑽 12 個孔後，最後一孔的中心距快碰到公差邊緣。', '公差', '旋臂鎖緊', 15, 8, 2, 25],
+                    ['不鏽鋼厚板加工硬化難下刀', '鑽頭在厚不鏽鋼表面摩擦太久，表面硬化讓後續更難鑽。', '旋臂鎖緊', '公差', 13, 11, 1, 35],
+                    ['旋臂旋轉角度刻度看不清', '油污蓋住角度刻度，調整旋臂位置時需用捲尺輔助量測。', '旋臂鎖緊', '公差', 15, 6, 1, 20],
+                    ['急件機架需提前完成孔加工', '組裝線等這座機架上線，必須加快孔加工節奏。', '旋臂鎖緊', '急件插單', 19, 11, 1, 25],
+                    ['鑽頭刃口退火變鈍需重磨', '連續鑽孔沒充分冷卻，鑽頭刃口變鈍切不動了。', '旋臂鎖緊', '公差', 15, 7, 2, 25],
+                    ['壓板夾持力量不均工件微翹', '單邊壓板太緊導致工件微翹，鑽完鬆開後孔距略變。', '旋臂鎖緊', '公差', 14, 8, 2, 25],
+                    ['鐵屑捲成大團纏住鑽頭', '連綿不斷的螺旋鐵屑纏上主軸，需停機安全清除。', '旋臂鎖緊', '公差', 15, 7, 1, 20],
+                    ['倒角刀使用後孔口毛邊仍大', '孔口倒角不夠均勻，手摸還有輕微刺手毛邊。', '公差', '旋臂鎖緊', 15, 6, 2, 20],
+                    ['工件表面有烤漆底漆影響定位', '劃線痕跡被底漆遮住，需先擦拭顯影再對中心。', '旋臂鎖緊', '公差', 15, 6, 1, 20],
+                    ['主軸自動進給離合器打滑', '自動進給阻力太大時離合器打滑，需調整進給扭力。', '旋臂鎖緊', '公差', 14, 8, 1, 25],
+                    ['孔位數量多容易漏鑽一孔', '24 個孔位陣列容易漏鑽，建議用油性筆逐孔做記號。', '公差', '首件檢驗', 16, 6, 3, 20],
+                    ['收工前需將旋臂升起並鎖緊', '下班前將旋臂歸位鎖緊並清理鐵屑，維持現場整潔。', '旋臂鎖緊', '公差', 16, 5, 2, 15]
+                ]
+            },
+            drill_press: {
+                zoneName: '台式鑽孔機區',
+                npcId: 'sec_master',
+                problems: [
+                    ['不鏽鋼圓管鑽孔打滑偏心', '沒打中心沖且圓管未用 V 型塊固定，鑽頭一接觸就滑開偏心。', '中心沖', '公差', 15, 9, 2, 30],
+                    ['小鑽頭（1.5mm）容易折斷', '小徑鑽頭進給太快或側向受力，一下子就折斷在孔裡。', '中心沖', '公差', 14, 10, 1, 30],
+                    ['皮帶傳動轉速設定不當', '轉速沒依鑽頭大小調整，小鑽頭轉速太低或大鑽頭轉速太高。', '中心沖', '公差', 15, 7, 2, 20],
+                    ['虎鉗夾持歪斜導致孔不垂直', '工件沒夾平就下鑽，鑽出來的孔明顯歪斜。', '中心沖', '公差', 14, 8, 2, 25],
+                    ['鑽孔毛邊太高影響後續壓鉚', '孔口毛邊沒刮除，壓鉚螺母壓下去時會被毛邊頂歪。', '壓鉚螺母', '中心沖', 15, 7, 2, 25],
+                    ['中心沖敲擊力道不足印記淺', '中心沖點得太淺，鑽頭剛下壓還是稍微晃動了一下。', '中心沖', '公差', 15, 6, 2, 20],
+                    ['鋁件黏刀導致鑽頭排屑不良', '鋁合金容易黏在鑽頭螺旋槽上，需噴潤滑劑並退屑。', '中心沖', '盲孔攻牙', 15, 7, 2, 25],
+                    ['台式鑽床工作台桌面有小凹坑', '以前鑽穿工件時傷到桌面，放薄板時需墊平整墊板。', '中心沖', '公差', 15, 6, 2, 20],
+                    ['鑽孔位置靠近邊緣容易撕裂', '孔邊距太近，鑽頭快穿透時邊緣材料容易撐裂。', '展開圖', '中心沖', 14, 9, -2, 25],
+                    ['三爪夾頭鑰匙遺失找了一下', '換鑽頭時夾頭鑰匙不見，花了幾分鐘才在工具箱找到。', '中心沖', '急件插單', 13, 8, 0, 20],
+                    ['一批 500 個小孔鑽到眼花', '數量多容易節奏疲勞，需要適度休息維持品質。', '中心沖', '公差', 17, 10, 1, 30],
+                    ['孔徑量測塞規通端過緊', '孔徑略小，塞規要稍微用力才推得進去。', '公差', '中心沖', 15, 7, 1, 20],
+                    ['薄板鑽孔變形拱起', '薄板沒壓緊就鑽孔，孔周圍被頂起一小包。', '中心沖', '公差', 14, 8, -1, 25],
+                    ['鑽頭偏擺跳動量太大', '鑽頭裝歪或夾頭磨損，旋轉時尖端明顯畫出小圓圈。', '中心沖', '公差', 14, 8, 2, 25],
+                    ['急件樣品需立刻鑽 10 個孔', '業務等著拿樣品去給客戶看，要求優先處理。', '中心沖', '急件插單', 18, 10, 1, 20],
+                    ['鑽完孔內有毛刺需用去毛刺刀', '孔內緣有細毛刺，用去毛刺刀刮一圈就滑順了。', '中心沖', '公差', 15, 6, 2, 20],
+                    ['雙孔中心距量測超差 0.2mm', '兩個孔的距離比圖面多了 0.2mm，需檢查定位靠模。', '公差', '首件檢驗', 14, 8, 2, 25],
+                    ['鑽孔時煙霧冒出需加冷卻', '切削摩擦生熱冒白煙，停下來冷卻並補充切削油。', '中心沖', '公差', 14, 8, 1, 25],
+                    ['塑膠/壓克力墊板穿孔融化', '用壓克力當墊板鑽孔時摩擦生熱黏住，改用木板或鋁墊板。', '中心沖', '公差', 15, 6, 2, 20],
+                    ['首件檢驗孔位偏移需重做治具', '首件量測發現定位靠模偏了，需調整靠模再量產。', '首件檢驗', '中心沖', 14, 9, 3, 30],
+                    ['鑽頭盒型號混亂需整理', '各種尺寸鑽頭混在一起，拿錯號數容易鑽錯孔徑。', '公差', '中心沖', 15, 6, 2, 20],
+                    ['下班前清理鑽台鐵屑', '刷除台面鐵屑並關好電源，保持工站乾淨。', '中心沖', '公差', 16, 5, 2, 15]
+                ]
+            },
+            rivet_press: {
+                zoneName: '鉚釘機 (PEM 壓合區)',
+                npcId: 'weld_master',
+                problems: [
+                    ['壓鉚螺母扭力測試脫落', '扭力扳手一轉壓鉚螺母就鬆脫，氣壓壓力不足或底孔偏大。', '壓鉚螺母', '公差', 15, 10, 2, 30],
+                    ['預沖底孔太大導致壓不緊', '前段沖孔孔徑偏大，壓鉚螺母齒紋咬不住板材。', '壓鉚螺母', '公差', 14, 10, -2, 30],
+                    ['預沖底孔太小壓入時板材鼓起', '底孔太小硬壓下去，螺母周圍鈑金鼓起變形。', '壓鉚螺母', '公差', 14, 9, -2, 25],
+                    ['壓鉚螺母壓歪傾斜不垂直', '放螺母時沒放正或上下模對心不佳，螺母歪了一邊。', '壓鉚螺母', '公差', 15, 8, 1, 25],
+                    ['螺母內牙被壓傷螺絲鎖不進去', '壓合力量過大把螺母內螺紋擠變形，螺絲卡住鎖不進。', '壓鉚螺母', '公差', 14, 9, -2, 25],
+                    ['電鍍後孔徑變小壓不進去', '板材先電鍍再壓鉚，孔徑變小導致螺母卡在外面。', '壓鉚螺母', '公差', 14, 9, 1, 25],
+                    ['壓鉚柱高度超出公差上限', '壓合行程設定過深，鉚柱背面凸出高度超標。', '壓鉚螺母', '公差', 15, 7, 2, 25],
+                    ['正反面裝反導致無法組裝', '不鏽鋼螺母裝到反面去了，只能退鉚或報廢重做。', '壓鉚螺母', '首件檢驗', 13, 11, -3, 30],
+                    ['氣壓調壓閥壓力波動不穩', '空壓管路氣壓忽高忽低，壓合品質跟著不穩定。', '壓鉚螺母', '公差', 14, 8, 2, 25],
+                    ['薄板壓鉚後局部扭曲變形', '0.8mm 薄板壓好幾個螺母後整片微扭，需校平。', '壓鉚螺母', '折彎回彈', 14, 8, 1, 25],
+                    ['PEM 螺母料號拿錯（M4 拿成 M3）', '備料盒標籤沒看清楚，壓了十幾顆才發現規格錯了。', '壓鉚螺母', '首件檢驗', 13, 10, -2, 30],
+                    ['壓合時發出異常金屬撞擊聲', '上下沖頭間隙或行程異常，發出刺耳金屬敲擊聲。', '壓鉚螺母', '公差', 14, 9, 2, 25],
+                    ['漏壓一顆螺母差點直接出貨', '巡檢時發現有一處孔位忘了壓螺母，好在及時抓到。', '壓鉚螺母', '首件檢驗', 16, 8, 3, 20],
+                    ['急件機殼需趕在下午 3 點前壓完', '組裝線等著這批機殼鎖零件，時間很趕。', '壓鉚螺母', '急件插單', 19, 12, 1, 25],
+                    ['螺母背面擠出環狀毛刺', '壓合邊緣有細小金屬毛刺，需順便修除避免刮手。', '壓鉚螺母', '公差', 15, 6, 2, 20],
+                    ['自動送料管卡住螺母', '鉚釘機自動送料軌卡住一顆歪掉的螺母，需排除卡料。', '壓鉚螺母', '公差', 15, 7, 1, 20],
+                    ['不鏽鋼壓鉚螺母咬合發澀', '不鏽鋼螺紋鎖試用螺絲時偏緊，需提醒組裝上防卡劑。', '壓鉚螺母', '公差', 15, 6, 1, 20],
+                    ['工件靠近折邊處壓合干涉', '折邊太靠近螺母位置，壓頭下壓時差點碰到折彎立邊。', '壓鉚螺母', '展開圖', 14, 9, 1, 25],
+                    ['抽檢扭力數值逼近下限', '扭力測試雖然過關但數值偏低，需微調壓力增加安全裕度。', '壓鉚螺母', '公差', 15, 7, 2, 25],
+                    ['客戶要求提供壓鉚扭力測試紀錄', '出貨前需補齊抽檢扭力數據記錄表。', '壓鉚螺母', '首件檢驗', 16, 6, 2, 20],
+                    ['壓合後表面有輕微黑印', '油污混合金屬粉留在螺母周圍，擦拭清潔即可。', '壓鉚螺母', '公差', 15, 5, 2, 15],
+                    ['收工前盤點剩餘螺母數量', '核對帳面與實物數量，避免缺料影響明天開線。', '壓鉚螺母', '公差', 16, 5, 2, 15]
+                ]
+            },
+            spot_welder: {
+                zoneName: '電阻點焊機區',
+                npcId: 'weld_master',
+                problems: [
+                    ['銅電極頭氧化造成假焊脫開', '鍍鋅板點焊後一掰就開，銅電極頭氧化導致熔核不足。', '假焊', '公差', 15, 9, 3, 30],
+                    ['焊接電流過大產生嚴重噴濺', '焊點周圍飛出許多火花焊渣，板面留下燒焦凹坑。', '假焊', '公差', 14, 9, -2, 25],
+                    ['焊點位置偏移沒對準加強筋', '點焊位置偏離加強筋中心，結構強度打折扣。', '假焊', '公差', 15, 8, 2, 25],
+                    ['電極冷卻水循環不足發熱', '電極臂發燙，冷卻水流量變小，再焊下去電極會加速變形。', '假焊', '公差', 14, 9, 2, 25],
+                    ['兩片板材貼合間隙太大', '工件有輕微變形沒貼緊就點焊，容易產生虛焊或炸火花。', '假焊', '公差', 14, 9, 1, 25],
+                    ['電極頭直徑越焊越大電流密度降', '電極端面壓扁變大，電流分散導致焊點強度不夠。', '假焊', '公差', 15, 7, 2, 25],
+                    ['鍍鋅層殘留導致焊點氣孔', '鍍鋅板點焊時鋅層熔化氣化，焊點內部出現氣孔。', '假焊', '公差', 14, 8, 1, 25],
+                    ['通電時間設定過短熔核太小', '焊點直徑太小，撕裂測試時沒拉出熔核按鈕。', '假焊', '公差', 15, 7, 2, 25],
+                    ['下電極臂高度調整不當', '深腔工件點焊時下臂干涉，需調整電極臂高度或角度。', '假焊', '公差', 14, 8, 2, 30],
+                    ['焊點數量漏打一處', '成品少打了一個焊點，巡檢時被品保發現。', '假焊', '首件檢驗', 16, 7, 3, 20],
+                    ['點焊後工件輕微熱變形翹曲', '連續點焊幾個焊點後，薄板稍微翹起需校平。', '假焊', '折彎回彈', 14, 8, 1, 25],
+                    ['急件機箱需趕在下午出貨', '點焊排程塞車，急件機箱等著焊完送去烤漆或組裝。', '假焊', '急件插單', 19, 12, 1, 25],
+                    ['電極接觸面有黑色氧化物', '用砂紙或修整器清掉氧化層，恢復良好導電接觸。', '假焊', '公差', 15, 6, 2, 20],
+                    ['撕裂測試樣品不合格需重調', '抽樣破壞性測試未達標，需重新調整電流與加壓時間。', '假焊', '首件檢驗', 14, 9, 3, 30],
+                    ['焊接時跳電或電壓微降', '鐵皮屋其他大功率機台同時啟動，瞬間壓降影響焊點。', '假焊', '急件插單', 13, 11, 1, 30],
+                    ['焊點外露面有輕微發黃變色', '不鏽鋼點焊後熱影響區變黃，需評估是否需要酸洗或拋光。', '假焊', '特採', 15, 7, -1, 25],
+                    ['定位治具銷磨損導致晃動', '點焊定位銷鬆動，每次放件位置略有差異。', '假焊', '公差', 14, 8, 2, 25],
+                    ['腳踏開關微動開關靈敏度下降', '踩下腳踏時偶爾延遲通電，影響操作節奏。', '假焊', '公差', 14, 7, 1, 20],
+                    ['多件組裝順序搞錯需拆焊', '兩塊小件位置放反就點焊了，拆開重焊很費工。', '假焊', '公差', 13, 10, -2, 30],
+                    ['焊渣飛濺黏在螺紋孔內', '焊渣噴進旁邊的螺紋孔，需用絲攻或氣槍清理乾淨。', '盲孔攻牙', '假焊', 15, 7, 2, 20],
+                    ['客戶要求增加焊點強度抽檢', '客戶臨時要求多做幾片撕裂拉力紀錄。', '假焊', '首件檢驗', 16, 7, 2, 20],
+                    ['收工前關閉冷卻水與電源', '下班前關閉點焊機電源與冷卻系統，檢查周邊安全。', '假焊', '公差', 16, 5, 2, 15]
+                ]
+            },
+            tapping_arm: {
+                zoneName: '懸臂攻牙機區',
+                npcId: 'sec_master',
+                problems: [
+                    ['盲孔攻牙 M4 絲攻卡斷在孔內', '鋁合金盲孔攻牙排屑不順，絲攻突然折斷卡在孔底。', '盲孔攻牙', '公差', 14, 11, 2, 35],
+                    ['螺紋通規過不去牙徑偏小', '攻完牙用通規測試卡住，可能是底孔太小或絲攻磨損。', '盲孔攻牙', '公差', 15, 8, 2, 25],
+                    ['螺紋止規通過了（牙過大）', '止規竟然滑進去了，螺紋配合會太鬆，需檢查底孔與絲攻。', '盲孔攻牙', '公差', 14, 9, -2, 25],
+                    ['切削油供給不足造成咬牙', '沒上攻牙油就攻不鏽鋼，螺紋粗糙甚至咬死卡住。', '盲孔攻牙', '公差', 15, 8, 2, 25],
+                    ['懸臂關節阻力變大移動不順', '氣動或電動懸臂關節需要潤滑調整，拉動時略感卡頓。', '盲孔攻牙', '公差', 15, 7, 1, 20],
+                    ['盲孔底部鐵屑沒清乾淨頂住絲攻', '孔底積屑太多，絲攻攻到底時被頂住容易斷裂。', '盲孔攻牙', '公差', 15, 8, 2, 25],
+                    ['攻牙垂直度略歪螺絲鎖不平', '手扶攻牙頭沒抓正，螺絲鎖進去時頭會微微歪斜。', '盲孔攻牙', '公差', 14, 8, 1, 25],
+                    ['薄板牙數太少容易滑牙', '薄板材料厚度不夠，攻出來的螺紋承受不了鎖付扭力。', '壓鉚螺母', '盲孔攻牙', 14, 9, -2, 25],
+                    ['絲攻型號拿錯（公制誤拿英制）', '攻了幾孔才發現牙距不對，好在及時停手沒擴大規模。', '盲孔攻牙', '首件檢驗', 14, 9, 2, 25],
+                    ['鋁屑黏附在絲攻刃口上', '鋁件攻牙容易黏屑，需定時刷除切屑並保持潤滑。', '盲孔攻牙', '公差', 15, 7, 2, 20],
+                    ['扭力保護設定太鬆一直打滑', '還沒攻到底扭力筒夾就打滑，效率變得很慢。', '盲孔攻牙', '公差', 15, 7, 1, 20],
+                    ['扭力保護設定太緊沒保護到', '阻力變大時沒打滑，差點把細牙絲攻扭斷。', '盲孔攻牙', '公差', 14, 9, 2, 25],
+                    ['漏攻一顆螺紋孔需補攻', '成品少攻了一個孔，交接前巡檢發現並補齊。', '盲孔攻牙', '首件檢驗', 16, 7, 3, 20],
+                    ['急件散熱座需趕快攻完牙', '急件插單等著攻完牙送去組裝，時間緊迫。', '盲孔攻牙', '急件插單', 19, 11, 1, 25],
+                    ['盲孔深度不夠導致螺絲鎖不到底', '孔深比螺絲有效牙長還淺，螺絲鎖一半就頂到底了。', '盲孔攻牙', '公差', 14, 8, 1, 25],
+                    ['攻牙油沾到工件表面需清潔', '攻完牙表面油膩膩，包裝前需擦拭乾淨。', '盲孔攻牙', '公差', 15, 6, 2, 20],
+                    ['反轉退牙時切屑卡住', '退絲攻時卡了一小塊鐵屑，小心慢慢退才沒斷。', '盲孔攻牙', '公差', 15, 8, 1, 25],
+                    ['多孔工件重複定位效率低', '靠手工對孔位太慢，做個簡單定位板會快很多。', '盲孔攻牙', '公差', 17, 7, 2, 25],
+                    ['絲攻刃口崩缺需更換新支', '放大鏡檢查發現絲攻刃口有小缺口，立刻換新避免斷裂。', '盲孔攻牙', '公差', 15, 7, 3, 20],
+                    ['客戶要求全檢關鍵螺紋孔', '重要結構件要求每孔都用通規檢查，工時增加。', '盲孔攻牙', '首件檢驗', 15, 9, 3, 30],
+                    ['攻牙後孔口有輕微毛邊', '用大一號鑽頭或倒角刀輕倒孔口，螺絲更好對準。', '盲孔攻牙', '公差', 15, 6, 2, 20],
+                    ['收工前清潔懸臂與收納絲攻', '歸位絲攻盒並擦拭機台，方便隔天接續使用。', '盲孔攻牙', '公差', 16, 5, 2, 15]
+                ]
+            },
+            qc_station: {
+                zoneName: '品檢與圖面桌',
+                npcId: 'qc_staff',
+                problems: [
+                    ['急件插單與首件檢驗時間衝突', '客戶急件催出貨，但換模後的首件檢驗還沒量完。', '首件檢驗', '急件插單', 18, 11, 2, 25],
+                    ['圖面版次更新但現場還在用舊圖', '品檢核對圖面時發現客戶剛寄來新版圖面，尺寸有微調。', '首件檢驗', '公差', 15, 10, 3, 30],
+                    ['關鍵孔位尺寸剛好卡在公差邊緣', '量測值落在公差上限邊緣，需確認量具誤差與判定標準。', '公差', '首件檢驗', 15, 8, 2, 25],
+                    ['展開圖折彎尺寸與 3D 模型略有出入', '量測成品展開尺寸與圖面標註差了 0.5mm，需釐清計算基準。', '展開圖', 'K因子', 15, 8, 2, 25],
+                    ['外觀刮傷是否符合特採標準', '成品側面有一道細微刮痕，需評估是否走特採流程。', '特採', '公差', 16, 9, -1, 25],
+                    ['游標卡尺與高度規需定期校驗', '量具校驗標籤快到期，需確認量測精度可靠。', '首件檢驗', '公差', 15, 6, 2, 20],
+                    ['抽檢發現 5% 零件毛邊超標', '抽樣 20 片中有 1 片毛邊偏大，需決定全檢還是退回修整。', '公差', '首件檢驗', 14, 9, 2, 30],
+                    ['客戶要求提供首件檢驗尺寸報告', '出貨前客戶指定要附完整尺寸量測數據表。', '首件檢驗', '公差', 16, 7, 2, 25],
+                    ['對角線尺寸偏差影響組裝方正度', '方型外殼對角線差了 1.0mm，組裝門板可能歪斜。', '公差', '折彎回彈', 14, 9, 2, 25],
+                    ['壓鉚螺母高度量測不一致', '抽檢壓鉚螺母凸出高度時發現有幾顆略高。', '壓鉚螺母', '公差', 15, 7, 2, 20],
+                    ['點焊外觀有輕微發黑或壓痕', '品檢確認焊點強度 OK，但外觀需與生管溝通是否接受。', '假焊', '特採', 15, 8, -1, 20],
+                    ['雷射切割掛渣未清乾淨被退回品檢', '品檢巡線發現部分板材底部還有掛渣，請現場處理。', '掛渣', '首件檢驗', 14, 9, 2, 25],
+                    ['盲孔深度量測不到底', '深度規量測時發現孔底有殘留切屑，清乾淨再量才準。', '盲孔攻牙', '公差', 15, 6, 2, 20],
+                    ['包裝箱內未放防潮乾燥劑或隔板', '出貨前檢查包裝發現少了隔板，容易在運送中碰撞。', '特採', '公差', 16, 7, 3, 20],
+                    ['急件抽檢需在 15 分鐘內完成', '貨車在外面等，品檢必須快速完成重點尺寸確認。', '首件檢驗', '急件插單', 19, 11, 1, 20],
+                    ['厚度量測發現材料批號混雜', '抽檢時發現兩片厚度不同，需追查備料區是否混料。', '公差', '首件檢驗', 14, 10, 3, 30],
+                    ['折彎角度量測角度規讀數判讀', '角度量測需靠緊基準面，避免量測姿勢造成誤差。', '折彎回彈', '公差', 15, 6, 2, 20],
+                    ['不良品隔離區標籤未填寫清楚', '紅單不良品沒寫原因與數量，需補齊標示方便後續處理。', '特採', '首件檢驗', 15, 6, 2, 20],
+                    ['客戶來電詢問進料檢驗狀況', '客戶品保打來關心這批貨的尺寸與外觀進度。', '首件檢驗', '特採', 16, 9, 1, 20],
+                    ['新進人員量測手法需指導', '新來的品檢同仁卡尺施力不穩，需示範正確量法。', '首件檢驗', '公差', 15, 7, 2, 25],
+                    ['出廠前最終外觀與數量核對', '核對裝箱數量與出貨單一致，準備放行出貨。', '首件檢驗', '公差', 18, 6, 2, 20],
+                    ['收工前整理品檢桌與量具', '將量具擦拭歸位，整理今日檢驗紀錄表。', '首件檢驗', '公差', 16, 5, 2, 15]
+                ]
+            },
+            office_pm: {
+                zoneName: '生管 / 廠務辦公區',
+                npcId: 'pmc',
+                problems: [
+                    ['大客戶急件插單要求提前交貨', '客戶產線等料，要求今天下午提前交出第一批零件。', '急件插單', '首件檢驗', 20, 13, 0, 30],
+                    ['外包烤漆成品運輸刮傷危機', '烤漆廠送回的零件疊放摩擦出現刮傷，貨車已在門口等。', '特採', '公差', 17, 13, -2, 30],
+                    ['產線排程衝突需重新調整順序', '沖床與折床同時卡到急件，白板排程需要重新調度。', '急件插單', '展開圖', 18, 11, 1, 25],
+                    ['客戶詢問交期能否再壓縮一天', '業務在群組問能不能提前一天交貨，需評估產能極限。', '急件插單', '公差', 18, 12, 0, 20],
+                    ['原料庫存安全水位警示', '某常用規格不鏽鋼板材庫存剩不多，需盡快安排採購。', '展開圖', '急件插單', 16, 9, 1, 25],
+                    ['外包廠報價與交期協商', '新開發零件需要外包雷射或表面處理，需確認交期與成本。', '急件插單', '掛渣', 16, 8, 1, 25],
+                    ['客戶提出微幅尺寸特採申請', '零件某處尺寸微超差但不影響組裝，需向客戶爭取特採。', '特採', '公差', 18, 9, -1, 25],
+                    ['下午貨運司機提早半小時抵達', '司機提前到廠區門口等裝貨，現場需加快收尾打包。', '急件插單', '首件檢驗', 19, 11, 0, 25],
+                    ['客戶臨時變更訂單數量', '客戶把原本 800 片改成 1,000 片，需同步更新製令單。', '急件插單', '展開圖', 17, 10, 0, 20],
+                    ['製令單完工回報落後需對帳', '現場完工回報還沒更新到系統，生管需逐站確認進度。', '急件插單', '首件檢驗', 16, 8, 1, 25],
+                    ['客戶抱怨前批貨交期太晚', '客戶採購在電話裡碎念上次交期延誤，需穩住關係。', '急件插單', '特採', 16, 12, 0, 25],
+                    ['跨部門協調模具優先維修', '某組模具急著上線，需協調研磨與沖床時段配合。', '沖頭研磨', '急件插單', 18, 10, 2, 25],
+                    ['試作打樣單插隊排程', '業務接了打樣單要拚量產訂單，需安排快速試做。', '首件檢驗', '急件插單', 17, 9, 1, 25],
+                    ['包裝材料（氣泡布/紙箱）快用完', '包材庫存吃緊，需緊急調度或請廠商補貨。', '特採', '公差', 15, 8, 1, 20],
+                    ['客戶要求確認圖面孔位是否可微調', '客戶機構工程師詢問孔位放寬公差是否能加快交期。', '公差', '特採', 18, 7, 1, 20],
+                    ['今日加班人力意願與調度', '下午進度有點緊，需統計哪幾位師傅能留守支援。', '急件插單', '公差', 17, 11, 1, 20],
+                    ['客戶退回少數不良品需開立異常', '收到客戶回饋少數不良品照片，需安排檢討與重工。', '特採', '首件檢驗', 14, 12, -2, 30],
+                    ['出貨單與棧板明細核對', '核對出貨單品項、數量與客戶料號是否完全正確。', '首件檢驗', '公差', 17, 6, 2, 20],
+                    ['颱風或午後雷陣雨前防範提醒', '午後天氣變化快，提醒鐵皮屋門口物料做好防潮遮蔽。', '特採', '公差', 16, 7, 1, 15],
+                    ['明日排程預排與備料通知', '提前排好明天一早的開機順序，讓隔天一早就能順順跑。', '展開圖', '急件插單', 18, 7, 2, 20],
+                    ['客戶對帳與出貨憑證確認', '確認本週已出貨明細，避免漏開出貨單影響結算。', '特採', '公差', 16, 6, 1, 20],
+                    ['今日交期總檢討與收尾', '盤點今日交期達成狀況，準備迎接下班或加班收尾。', '急件插單', '首件檢驗', 18, 7, 2, 20]
+                ]
+            }
+        };
+
+        // 動態建構 11 工站 × 22 題 = 242 組完整獨立事件物件
+        const EVENTS_POOL = [];
+        Object.entries(STATION_META).forEach(([zoneKey, meta]) => {
+            meta.problems.forEach((p, idx) => {
+                const [shortProb, detail, j1, j2, baseProg, baseStress, baseQual, baseMins] = p;
+                const npcName = getCharName(meta.npcId);
+                EVENTS_POOL.push({
+                    id: `${zoneKey}_${idx + 1}`,
+                    zoneKey,
+                    zoneName: meta.zoneName,
+                    npcId: meta.npcId,
+                    title: `${meta.zoneName.split(' ')[0]}：${shortProb}`,
+                    desc: `${detail} 現場${npcName}立刻來找你回報，涉及「${j1}」與「${j2}」相關環節，你決定怎麼處理？`,
+                    options: [
+                        {
+                            label: `A. 依標準作業確實排查「${j1}」，確認無誤再繼續生產`,
+                            feedback: `你冷靜排查「${j1}」並做好確認，雖然多花了一點時間，但現場品質穩住、後續不容易出包！`,
+                            progress: baseProg,
+                            stress: Math.max(4, baseStress - 2),
+                            quality: Math.max(1, baseQual + 2),
+                            minutes: baseMins,
+                            type: 'good'
+                        },
+                        {
+                            label: `B. 趕時間先微調硬撐，邊跑產線邊留意「${j2}」狀況`,
+                            feedback: `你選擇加快節奏趕進度，交期推進快了一些，但現場緊繃度上升，需要多留意「${j2}」的變化。`,
+                            progress: baseProg + 4,
+                            stress: baseStress + 5,
+                            quality: baseQual - 2,
+                            minutes: Math.max(15, baseMins - 10),
+                            type: 'warn'
+                        },
+                        {
+                            label: `C. 暫不調整直接硬衝，交期優先先拼數量再說`,
+                            feedback: `硬衝雖然短時間看似拼了數量，但「${j1}」與「${j2}」的隱憂浮現，壓力與良率都受到考驗！`,
+                            progress: baseProg + 6,
+                            stress: baseStress + 11,
+                            quality: Math.min(-4, baseQual - 7),
+                            minutes: Math.max(15, baseMins - 12),
+                            type: 'bad'
+                        }
+                    ]
+                });
+            });
+        });
+
+        // =========================================================================
+        // 5. 手機通訊系統（參考附圖：頂部時間、狀態列、群組與家人訊息）
+        // =========================================================================
+        const phoneState = {
+            activeChatId: null,
+            chats: [
+                {
+                    id: 'group_shop',
+                    name: '鐵皮屋加工群組',
+                    avatarBg: '#dbeafe',
+                    avatarText: '#1d4ed8',
+                    avatarLetter: '工',
+                    badgeTime: '10:50',
+                    unread: 1,
+                    senderId: 'tech',
+                    messages: [
+                        { fromMe: false, senderId: 'tech', text: '早啊大家，今天陽光不錯，200T 沖床跟研磨機都暖機好了。' },
+                        { fromMe: false, senderId: 'bender_master', text: '折床這邊剛拿到料，有人確認展開圖 K因子與回彈補償了嗎？' }
+                    ],
+                    replies: [
+                        {
+                            text: '收到！我剛確認好尺寸，先穩穩跑首件。',
+                            stressDelta: -3,
+                            progressDelta: 2,
+                            minsDelta: 5,
+                            replyBack: '好，有狀況隨時喊一聲！'
+                        },
+                        {
+                            text: '先趕急單要緊，有問題待會再修！',
+                            stressDelta: 4,
+                            progressDelta: 4,
+                            minsDelta: 5,
+                            replyBack: '了解，那我先盯著機台。'
+                        }
+                    ]
+                },
+                {
+                    id: 'customer_urgent',
+                    name: '林採購（急件客戶）',
+                    avatarBg: '#fce7f3',
+                    avatarText: '#be185d',
+                    avatarLetter: '林',
+                    badgeTime: '09:35',
+                    unread: 1,
+                    senderId: 'qc_staff',
+                    messages: [
+                        { fromMe: false, senderId: 'qc_staff', text: '（語音）老闆／師傅，客戶剛打來問今天那批件能不能先出半批？' },
+                        { fromMe: false, senderId: 'pmc', text: '我這邊排程還在喬，看你現場能不能先拉出良品。' }
+                    ],
+                    replies: [
+                        {
+                            text: '確認良品公差 OK 就先安排出貨！',
+                            stressDelta: 3,
+                            progressDelta: 5,
+                            minsDelta: 10,
+                            replyBack: '太好了，我立刻通知出貨單！'
+                        },
+                        {
+                            text: '先顧好品質不亂衝，晚一點回報正確時間。',
+                            stressDelta: -2,
+                            progressDelta: 1,
+                            minsDelta: 10,
+                            replyBack: '沒問題，寧可準確也不要退貨。'
+                        }
+                    ]
+                },
+                {
+                    id: 'family_group',
+                    name: '家人群組',
+                    avatarBg: '#fef3c7',
+                    avatarText: '#b45309',
+                    avatarLetter: '家',
+                    badgeTime: '08:39',
+                    unread: 1,
+                    senderId: 'grinder_master',
+                    messages: [
+                        { fromMe: false, senderId: 'grinder_master', text: '今天外面太陽很大，記得多喝水喔！' },
+                        { fromMe: false, senderId: 'qc_staff', text: '晚餐要吃家裡煮的，還是要幫你買便當？' }
+                    ],
+                    replies: [
+                        {
+                            text: '我今天拚準時下班，回家吃飯！',
+                            stressDelta: -4,
+                            progressDelta: 2,
+                            minsDelta: 5,
+                            replyBack: '好耶！那等你回來再熱菜～'
+                        },
+                        {
+                            text: '今天產線有點忙，可能晚點回，不用等我。',
+                            stressDelta: 2,
+                            progressDelta: 2,
+                            minsDelta: 5,
+                            replyBack: '辛苦了，忙完早點休息！'
+                        }
+                    ]
+                },
+                {
+                    id: 'laser_vendor',
+                    name: '宏達雷射外包廠',
+                    avatarBg: '#e0f2fe',
+                    avatarText: '#0369a1',
+                    avatarLetter: '雷',
+                    badgeTime: '08:20',
+                    unread: 0,
+                    senderId: 'sec_master',
+                    messages: [
+                        { fromMe: false, senderId: 'sec_master', text: '早安，請問今天攻牙與鑽孔的急件孔位圖有更新嗎？' }
+                    ],
+                    replies: [
+                        {
+                            text: '照最新圖面做，盲孔記得排屑與上油。',
+                            stressDelta: -2,
+                            progressDelta: 2,
+                            minsDelta: 5,
+                            replyBack: '收到，我們照規矩處理！'
+                        }
+                    ]
+                }
+            ]
+        };
+
+        function getUnreadPhoneCount() {
+            return phoneState.chats.reduce((acc, c) => acc + (c.unread || 0), 0);
+        }
+
+        function updatePhoneBadge() {
+            const badge = document.getElementById('phone-unread-badge');
+            const count = getUnreadPhoneCount();
+            if (!badge) return;
+            if (count > 0) {
+                badge.textContent = count;
+                badge.classList.remove('hidden');
+            } else {
+                badge.classList.add('hidden');
+            }
+        }
+
+        let wasPausedBeforePhone = false;
+
+        function openPhoneModal() {
+            SoundFX.click();
+            wasPausedBeforePhone = gameState.started && !gameState.paused;
+            if (wasPausedBeforePhone) gameState.paused = true;
+
+            phoneState.activeChatId = null;
+            document.getElementById('phone-list-view').classList.remove('hidden');
+            document.getElementById('phone-thread-view').classList.add('hidden');
+            renderPhoneUI();
+            document.getElementById('phone-modal').classList.remove('hidden');
+        }
+
+        function closePhoneModal() {
+            SoundFX.click();
+            document.getElementById('phone-modal').classList.add('hidden');
+            updatePhoneBadge();
+            if (wasPausedBeforePhone) {
+                gameState.paused = false;
+                wasPausedBeforePhone = false;
+            }
+        }
+
+        function formatClockString(totalMins) {
+            const hrs = Math.floor(totalMins / 60) % 24;
+            const mins = Math.floor(totalMins % 60);
+            return `${String(hrs).padStart(2, '0')}:${String(mins).padStart(2, '0')}`;
+        }
+
+        function renderPhoneUI() {
+            document.getElementById('phone-status-time').textContent = formatClockString(gameState.timeMinutes);
+
+            // 上排狀態列（參考附圖：你 + 狀態，以及師傅綠色 UP 氣泡）
+            const stripEl = document.getElementById('phone-status-strip');
+            const activeRoleId = gameState.role ? gameState.role.id : 'tech';
+            const myName = getCharName(activeRoleId);
+            const featuredIds = ['tech', 'pmc', 'qa', 'bender_master'];
+
+            const myAvatarHtml = `
+                <div onclick="cycleMyPhoneStatus()" class="flex flex-col items-center shrink-0 w-16 cursor-pointer group">
+                    <span class="px-2 py-0.5 rounded-full bg-white border border-slate-300 text-[10px] font-bold text-slate-700 shadow-xs mb-1 group-hover:border-amber-400">
+                        + 狀態
+                    </span>
+                    <div class="w-12 h-12 rounded-full bg-amber-400 border-2 border-amber-500 flex items-center justify-center text-2xl shadow-xs">
+                        👷
+                    </div>
+                    <span class="text-[11px] font-bold text-slate-800 mt-1 truncate w-full text-center">${escapeHtml(myName)}</span>
+                    <span class="text-[9px] text-slate-500 truncate w-full text-center">${escapeHtml(playerCustomStatus)}</span>
+                </div>
+            `;
+
+            const contactsHtml = featuredIds.map(id => {
+                const cfg = getCharById(id);
+                const name = getCharName(id);
+                return `
+                    <div class="flex flex-col items-center shrink-0 w-16">
+                        <span class="px-2 py-0.5 rounded-full bg-emerald-600 text-white text-[10px] font-bold shadow-xs mb-1">
+                            UP
+                        </span>
+                        <div class="w-12 h-12 rounded-full flex items-center justify-center text-base font-black shadow-xs" style="background:${cfg ? cfg.avatarBg : '#e2e8f0'};color:${cfg ? cfg.avatarText : '#0f172a'};">
+                            ${escapeHtml(name.slice(0, 1))}
+                        </div>
+                        <span class="text-[11px] font-medium text-slate-700 mt-1 truncate w-full text-center">${escapeHtml(name)}</span>
+                        <span class="text-[9px] text-emerald-700 truncate w-full text-center">${escapeHtml(cfg ? cfg.statusUp : '線上')}</span>
+                    </div>
+                `;
+            }).join('');
+
+            stripEl.innerHTML = myAvatarHtml + contactsHtml;
+
+            // 下方訊息列表
+            const listEl = document.getElementById('phone-chat-list');
+            listEl.innerHTML = phoneState.chats.map(chat => {
+                const lastMsg = chat.messages[chat.messages.length - 1];
+                const previewPrefix = lastMsg.fromMe ? '你：' : `${getCharName(lastMsg.senderId)}：`;
+                const badgeHtml = chat.unread > 0
+                    ? `<span class="mt-1 inline-flex items-center justify-center min-w-[18px] h-[18px] px-1 rounded-full bg-rose-500 text-white text-[10px] font-mono-tech font-bold">${chat.unread}</span>`
+                    : '';
+
+                return `
+                    <div onclick="openChatThread('${chat.id}')" class="px-4 py-3 hover:bg-slate-50 cursor-pointer flex items-center gap-3 transition">
+                        <div class="w-12 h-12 rounded-full flex items-center justify-center text-base font-black shrink-0" style="background:${chat.avatarBg};color:${chat.avatarText};">
+                            ${escapeHtml(chat.avatarLetter)}
+                        </div>
+                        <div class="flex-1 min-w-0">
+                            <div class="text-sm font-bold text-slate-900 truncate">${escapeHtml(chat.name)}</div>
+                            <div class="text-xs text-slate-500 truncate mt-0.5">${escapeHtml(previewPrefix + lastMsg.text)}</div>
+                        </div>
+                        <div class="flex flex-col items-end shrink-0">
+                            <span class="text-[11px] font-mono-tech ${chat.unread > 0 ? 'text-rose-500 font-bold' : 'text-slate-400'}">${escapeHtml(chat.badgeTime)}</span>
+                            ${badgeHtml}
+                        </div>
+                    </div>
+                `;
+            }).join('');
+
+            if (phoneState.activeChatId) {
+                renderActiveThread();
+            }
+        }
+
+        function cycleMyPhoneStatus() {
+            SoundFX.click();
+            const statuses = ['上工拼交期', '顧機台中', '核對公差', '等準時下班'];
+            const idx = statuses.indexOf(playerCustomStatus);
+            playerCustomStatus = statuses[(idx + 1) % statuses.length];
+            renderPhoneUI();
+        }
+
+        function openChatThread(chatId) {
+            SoundFX.click();
+            const chat = phoneState.chats.find(c => c.id === chatId);
+            if (!chat) return;
+            chat.unread = 0;
+            updatePhoneBadge();
+
+            phoneState.activeChatId = chatId;
+            document.getElementById('phone-list-view').classList.add('hidden');
+            document.getElementById('phone-thread-view').classList.remove('hidden');
+            renderActiveThread();
+        }
+
+        function backToPhoneList() {
+            SoundFX.click();
+            phoneState.activeChatId = null;
+            document.getElementById('phone-thread-view').classList.add('hidden');
+            document.getElementById('phone-list-view').classList.remove('hidden');
+            renderPhoneUI();
+        }
+
+        function renderActiveThread() {
+            const chat = phoneState.chats.find(c => c.id === phoneState.activeChatId);
+            if (!chat) return;
+
+            document.getElementById('phone-thread-title').textContent = chat.name;
+            const msgsEl = document.getElementById('phone-thread-messages');
+            msgsEl.innerHTML = chat.messages.map(m => {
+                if (m.fromMe) {
+                    return `
+                        <div class="flex justify-end">
+                            <div class="max-w-[78%] px-3 py-2 rounded-2xl rounded-tr-sm bg-emerald-500 text-white text-xs leading-relaxed shadow-xs">
+                                ${escapeHtml(m.text)}
+                            </div>
+                        </div>
+                    `;
+                }
+                return `
+                    <div class="flex flex-col items-start">
+                        <span class="text-[10px] text-slate-500 mb-0.5 ml-1">${escapeHtml(getCharName(m.senderId))}</span>
+                        <div class="max-w-[82%] px-3 py-2 rounded-2xl rounded-tl-sm bg-white border border-slate-200 text-slate-800 text-xs leading-relaxed shadow-xs">
+                            ${escapeHtml(m.text)}
+                        </div>
+                    </div>
+                `;
+            }).join('');
+            msgsEl.scrollTop = msgsEl.scrollHeight;
+
+            const repliesEl = document.getElementById('phone-quick-replies');
+            repliesEl.innerHTML = chat.replies.map((r, idx) => `
+                <button type="button" onclick="sendQuickReply('${chat.id}', ${idx})" class="w-full text-left px-3 py-2 rounded-xl bg-slate-100 hover:bg-amber-100 border border-slate-200 hover:border-amber-400 text-xs font-bold text-slate-800 transition">
+                    💬 ${escapeHtml(r.text)}
+                </button>
+            `).join('');
+        }
+
+        function sendQuickReply(chatId, replyIdx) {
+            const chat = phoneState.chats.find(c => c.id === chatId);
+            if (!chat || !chat.replies[replyIdx]) return;
+            const r = chat.replies[replyIdx];
+
+            SoundFX.success();
+            chat.messages.push({ fromMe: true, senderId: 'me', text: r.text });
+            if (r.replyBack) {
+                chat.messages.push({ fromMe: false, senderId: chat.senderId, text: r.replyBack });
+            }
+            chat.badgeTime = formatClockString(gameState.timeMinutes);
+
+            if (gameState.started) {
+                gameState.stress = THREE.MathUtils.clamp(gameState.stress + (r.stressDelta || 0), 0, 100);
+                gameState.progress = THREE.MathUtils.clamp(gameState.progress + (r.progressDelta || 0), 0, 100);
+                gameState.timeMinutes += (r.minsDelta || 5);
+                updateHUD();
+            }
+
+            renderActiveThread();
+        }
+
+        // =========================================================================
+        // 6. 遊戲狀態與 3D 場景（無屋頂支架 + 陽光綠化外圍 + 11 工站）
+        // =========================================================================
+        let gameState = {
+            started: false,
+            paused: false,
+            role: null,
+            timeMinutes: 8 * 60,
+            progress: 15,
+            stress: 20,
+            quality: 96,
+            eventQueue: [],
+            currentEventIndex: 0,
+            currentTargetZone: null,
+            nearTarget: false
+        };
+
+        let scene, camera, renderer;
+        let playerGroup, targetRing, exclamationMesh;
+        let beaconMeshes = {};
+        let sparkParticles = [];
+        let exhaustFans = [];
+        let npcSprites = [];
+        let interactables = {};
+        let clock = new THREE.Clock();
+
+        const cameraRig = {
+            panTarget: new THREE.Vector3(0, 0.5, 1.5),
+            yaw: 0,
+            pitch: 0.66,
+            distance: 28,
+            followPlayer: false,
+            isLeftDragging: false,
+            isRightDragging: false,
+            dragMoved: false,
+            dragStartX: 0,
+            dragStartY: 0,
+            lastPointerX: 0,
+            lastPointerY: 0
+        };
+
+        const playerState = {
+            pos: new THREE.Vector3(0, 0, 5.5),
+            targetPos: null,
+            speed: 9.0,
+            keys: { w: false, a: false, s: false, d: false, ArrowUp: false, ArrowLeft: false, ArrowDown: false, ArrowRight: false },
+            joyVec: { x: 0, y: 0 }
+        };
+
+        function initThree() {
+            const canvas = document.getElementById('game-canvas');
+            scene = new THREE.Scene();
+            // 陽光晴朗藍天背景與柔和遠景霧氣
+            scene.background = new THREE.Color(0x7dd3fc);
+            scene.fog = new THREE.Fog(0xbae6fd, 55, 145);
+
+            camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 220);
+            updateCameraTransform(true);
+
+            renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+            renderer.shadowMap.enabled = true;
+            renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+
+            // 明亮陽光照明
+            const hemiLight = new THREE.HemisphereLight(0xe0f2fe, 0x4ade80, 0.9);
+            scene.add(hemiLight);
+
+            const sunLight = new THREE.DirectionalLight(0xfffbeb, 1.15);
+            sunLight.position.set(22, 34, 20);
+            sunLight.castShadow = true;
+            sunLight.shadow.mapSize.width = 2048;
+            sunLight.shadow.mapSize.height = 2048;
+            const d = 30;
+            sunLight.shadow.camera.left = -d;
+            sunLight.shadow.camera.right = d;
+            sunLight.shadow.camera.top = d;
+            sunLight.shadow.camera.bottom = -d;
+            scene.add(sunLight);
+
+            buildSunnyGreeneryAndTinPerimeter();
+            buildAllElevenStations();
+            buildPlayer();
+            buildExclamationMarker();
+            rebuild3DNameSprites();
+            setupCameraAndInputControls();
+            updateFollowButtonUI();
+            updatePhoneBadge();
+
+            window.addEventListener('resize', onWindowResize);
+            animate();
+        }
+
+        function createMat(color, metalness = 0.4, roughness = 0.5) {
+            return new THREE.MeshStandardMaterial({ color, metalness, roughness });
+        }
+
+        function createCorrugatedMetalTexture(baseHex = '#64748b', ribHex = '#94a3b8', grooveHex = '#334155') {
+            const c = document.createElement('canvas');
+            c.width = 256;
+            c.height = 256;
+            const ctx = c.getContext('2d');
+
+            const ribs = 16;
+            const step = c.width / ribs;
+            for (let i = 0; i < ribs; i++) {
+                const x = i * step;
+                const grad = ctx.createLinearGradient(x, 0, x + step, 0);
+                grad.addColorStop(0.0, grooveHex);
+                grad.addColorStop(0.35, ribHex);
+                grad.addColorStop(0.5, baseHex);
+                grad.addColorStop(0.85, grooveHex);
+                grad.addColorStop(1.0, grooveHex);
+                ctx.fillStyle = grad;
+                ctx.fillRect(x, 0, step, c.height);
+            }
+
+            const tex = new THREE.CanvasTexture(c);
+            tex.wrapS = THREE.RepeatWrapping;
+            tex.wrapT = THREE.RepeatWrapping;
+            return tex;
+        }
+
+        function createConcreteFloorTexture() {
+            const c = document.createElement('canvas');
+            c.width = 512;
+            c.height = 512;
+            const ctx = c.getContext('2d');
+
+            ctx.fillStyle = '#475569';
+            ctx.fillRect(0, 0, 512, 512);
+
+            ctx.strokeStyle = 'rgba(15, 23, 42, 0.35)';
+            ctx.lineWidth = 2;
+            const grid = 64;
+            for (let g = 0; g <= 512; g += grid) {
+                ctx.beginPath();
+                ctx.moveTo(g, 0);
+                ctx.lineTo(g, 512);
+                ctx.stroke();
+
+                ctx.beginPath();
+                ctx.moveTo(0, g);
+                ctx.lineTo(512, g);
+                ctx.stroke();
+            }
+
+            const tex = new THREE.CanvasTexture(c);
+            tex.wrapS = THREE.RepeatWrapping;
+            tex.wrapT = THREE.RepeatWrapping;
+            tex.repeat.set(8, 6);
+            return tex;
+        }
+
+        // 建立「無上方支架」的鐵皮圍牆場地 + 外圍陽光綠化（草地、樹木、灌木、遠山）
+        function buildSunnyGreeneryAndTinPerimeter() {
+            // 1. 外圍廣闊陽光綠地草坪
+            const outerGrass = new THREE.Mesh(
+                new THREE.PlaneGeometry(240, 240),
+                new THREE.MeshStandardMaterial({ color: 0x4ade80, roughness: 0.9, metalness: 0.02 })
+            );
+            outerGrass.rotation.x = -Math.PI / 2;
+            outerGrass.position.y = -0.05;
+            outerGrass.receiveShadow = true;
+            scene.add(outerGrass);
+
+            // 廠區外圍環繞草坪帶
+            const lawnBorder = new THREE.Mesh(
+                new THREE.PlaneGeometry(56, 44),
+                new THREE.MeshStandardMaterial({ color: 0x22c55e, roughness: 0.85, metalness: 0.05 })
+            );
+            lawnBorder.rotation.x = -Math.PI / 2;
+            lawnBorder.position.y = -0.02;
+            lawnBorder.receiveShadow = true;
+            scene.add(lawnBorder);
+
+            // 2. 廠房內部水泥地坪與黃黑警戒線
+            const floorTex = createConcreteFloorTexture();
+            const floor = new THREE.Mesh(
+                new THREE.PlaneGeometry(48, 36),
+                new THREE.MeshStandardMaterial({ map: floorTex, roughness: 0.82, metalness: 0.12 })
+            );
+            floor.rotation.x = -Math.PI / 2;
+            floor.receiveShadow = true;
+            floor.name = 'factory-floor';
+            scene.add(floor);
+
+            const yellowLineMat = new THREE.MeshBasicMaterial({ color: 0xf59e0b });
+            [-4.8, -2.6, 4.2, 6.4].forEach(zPos => {
+                const line = new THREE.Mesh(new THREE.PlaneGeometry(42, 0.2), yellowLineMat);
+                line.rotation.x = -Math.PI / 2;
+                line.position.set(0, 0.02, zPos);
+                scene.add(line);
+            });
+
+            // 3. 四周波浪鐵皮圍牆與鐵捲門（無上方屋頂支架與桁架）
+            const wallTex = createCorrugatedMetalTexture('#64748b', '#94a3b8', '#334155');
+            wallTex.repeat.set(6, 1);
+            const corrugatedMat = new THREE.MeshStandardMaterial({
+                map: wallTex,
+                metalness: 0.55,
+                roughness: 0.4
+            });
+
+            const backWall = new THREE.Mesh(new THREE.BoxGeometry(48, 3.6, 0.35), corrugatedMat);
+            backWall.position.set(0, 1.8, -17.5);
+            backWall.castShadow = true;
+            backWall.receiveShadow = true;
+            scene.add(backWall);
+
+            const leftWall = new THREE.Mesh(new THREE.BoxGeometry(0.35, 3.6, 36), corrugatedMat);
+            leftWall.position.set(-24, 1.8, 0);
+            leftWall.castShadow = true;
+            scene.add(leftWall);
+
+            const rightWall = new THREE.Mesh(new THREE.BoxGeometry(0.35, 3.6, 36), corrugatedMat);
+            rightWall.position.set(24, 1.8, 0);
+            rightWall.castShadow = true;
+            scene.add(rightWall);
+
+            const frontLeftWall = new THREE.Mesh(new THREE.BoxGeometry(16, 2.2, 0.35), corrugatedMat);
+            frontLeftWall.position.set(-16, 1.1, 18);
+            scene.add(frontLeftWall);
+
+            const frontRightWall = new THREE.Mesh(new THREE.BoxGeometry(16, 2.2, 0.35), corrugatedMat);
+            frontRightWall.position.set(16, 1.1, 18);
+            scene.add(frontRightWall);
+
+            const rollerTex = createCorrugatedMetalTexture('#475569', '#64748b', '#1e293b');
+            rollerTex.repeat.set(3, 2);
+            const rollerDoor = new THREE.Mesh(
+                new THREE.BoxGeometry(14, 1.9, 0.25),
+                new THREE.MeshStandardMaterial({ map: rollerTex, metalness: 0.65, roughness: 0.35 })
+            );
+            rollerDoor.position.set(0, 0.95, 18);
+            scene.add(rollerDoor);
+
+            // 後牆排風扇
+            buildExhaustFan(-9, 2.1, -17.2);
+            buildExhaustFan(9, 2.1, -17.2);
+
+            // 4. 廠區外圍綠化植栽（樹木、灌木叢、遠山）
+            const treeCoords = [
+                [-28, -16, 1.1], [-20, -22, 1.25], [-8, -23, 1.0], [6, -23, 1.2],
+                [18, -22, 1.15], [28, -15, 1.3], [-29, -3, 1.05], [-29, 9, 1.2],
+                [29, -2, 1.15], [29, 10, 1.05], [-22, 22, 1.1], [22, 22, 1.2]
+            ];
+            treeCoords.forEach(([x, z, scale]) => buildGreenTree(x, z, scale));
+
+            // 圍牆外灌木綠籬
+            const bushMat = createMat(0x16a34a, 0.05, 0.85);
+            for (let bx = -22; bx <= 22; bx += 4.4) {
+                const bush = new THREE.Mesh(new THREE.DodecahedronGeometry(1.15, 1), bushMat);
+                bush.scale.set(1.4, 0.75, 1.0);
+                bush.position.set(bx, 0.55, -19.2);
+                bush.castShadow = true;
+                scene.add(bush);
+            }
+
+            // 遠方陽光山丘剪影
+            const hillMat = new THREE.MeshStandardMaterial({ color: 0x34d399, roughness: 0.95 });
+            [[-48, -68, 26, 12], [0, -75, 34, 15], [50, -66, 28, 13]].forEach(([hx, hz, rad, h]) => {
+                const hill = new THREE.Mesh(new THREE.ConeGeometry(rad, h, 24), hillMat);
+                hill.position.set(hx, h * 0.42, hz);
+                scene.add(hill);
+            });
+
+            // 點擊地面移動光圈
+            const ringGeo = new THREE.RingGeometry(0.38, 0.62, 24);
+            const ringMat = new THREE.MeshBasicMaterial({ color: 0x10b981, side: THREE.DoubleSide });
+            targetRing = new THREE.Mesh(ringGeo, ringMat);
+            targetRing.rotation.x = -Math.PI / 2;
+            targetRing.position.y = 0.04;
+            targetRing.visible = false;
+            scene.add(targetRing);
+        }
+
+        function buildGreenTree(x, z, scale = 1) {
+            const tree = new THREE.Group();
+            tree.position.set(x, 0, z);
+            tree.scale.setScalar(scale);
+
+            const trunk = new THREE.Mesh(
+                new THREE.CylinderGeometry(0.35, 0.5, 2.6, 10),
+                createMat(0x78350f, 0.05, 0.9)
+            );
+            trunk.position.y = 1.3;
+            trunk.castShadow = true;
+            tree.add(trunk);
+
+            const leafMat1 = createMat(0x15803d, 0.05, 0.8);
+            const leafMat2 = createMat(0x22c55e, 0.05, 0.75);
+
+            const crown1 = new THREE.Mesh(new THREE.DodecahedronGeometry(2.1, 1), leafMat1);
+            crown1.position.set(0, 3.6, 0);
+            crown1.castShadow = true;
+            tree.add(crown1);
+
+            const crown2 = new THREE.Mesh(new THREE.DodecahedronGeometry(1.5, 1), leafMat2);
+            crown2.position.set(1.1, 3.1, 0.7);
+            crown2.castShadow = true;
+            tree.add(crown2);
+
+            scene.add(tree);
+        }
+
+        function buildExhaustFan(x, y, z) {
+            const fanGroup = new THREE.Group();
+            fanGroup.position.set(x, y, z);
+
+            const frame = new THREE.Mesh(new THREE.CylinderGeometry(0.85, 0.85, 0.2, 20), createMat(0x1e293b, 0.6, 0.4));
+            frame.rotation.x = Math.PI / 2;
+            fanGroup.add(frame);
+
+            const blades = new THREE.Group();
+            const bladeMat = createMat(0xe2e8f0, 0.7, 0.3);
+            for (let i = 0; i < 4; i++) {
+                const b = new THREE.Mesh(new THREE.BoxGeometry(0.18, 0.72, 0.04), bladeMat);
+                const angle = (i * Math.PI) / 2;
+                b.position.set(Math.cos(angle) * 0.35, Math.sin(angle) * 0.35, 0.05);
+                b.rotation.z = angle;
+                blades.add(b);
+            }
+            fanGroup.add(blades);
+            scene.add(fanGroup);
+
+            exhaustFans.push({ mesh: blades });
+        }
+
+        function createZoneLabelSprite(text, subText = '') {
+            const canvas = document.createElement('canvas');
+            canvas.width = 512;
+            canvas.height = 140;
+            const ctx = canvas.getContext('2d');
+
+            ctx.fillStyle = 'rgba(15, 23, 42, 0.9)';
+            ctx.strokeStyle = '#f59e0b';
+            ctx.lineWidth = 6;
+            ctx.beginPath();
+            ctx.roundRect(12, 12, 488, 116, 22);
+            ctx.fill();
+            ctx.stroke();
+
+            ctx.fillStyle = '#ffffff';
+            ctx.font = 'bold 42px "Noto Sans TC", sans-serif';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillText(text, 256, subText ? 52 : 70);
+
+            if (subText) {
+                ctx.fillStyle = '#fbbf24';
+                ctx.font = 'bold 24px "JetBrains Mono", "Noto Sans TC", sans-serif';
+                ctx.fillText(subText, 256, 98);
+            }
+
+            const texture = new THREE.CanvasTexture(canvas);
+            const spriteMat = new THREE.SpriteMaterial({ map: texture, transparent: true });
+            const sprite = new THREE.Sprite(spriteMat);
+            sprite.scale.set(4.6, 1.25, 1);
+            return sprite;
+        }
+
+        function createMasterNameSprite(nameStr, roleStr, accentHex = '#38bdf8') {
+            const canvas = document.createElement('canvas');
+            canvas.width = 384;
+            canvas.height = 104;
+            const ctx = canvas.getContext('2d');
+
+            ctx.fillStyle = 'rgba(15, 23, 42, 0.88)';
+            ctx.strokeStyle = accentHex;
+            ctx.lineWidth = 5;
+            ctx.beginPath();
+            ctx.roundRect(10, 10, 364, 84, 18);
+            ctx.fill();
+            ctx.stroke();
+
+            ctx.fillStyle = '#fbbf24';
+            ctx.font = 'bold 34px "Noto Sans TC", sans-serif';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillText(nameStr, 192, 40);
+
+            ctx.fillStyle = '#cbd5e1';
+            ctx.font = 'bold 18px "Noto Sans TC", sans-serif';
+            ctx.fillText(roleStr, 192, 74);
+
+            const tex = new THREE.CanvasTexture(canvas);
+            const mat = new THREE.SpriteMaterial({ map: tex, transparent: true });
+            const sprite = new THREE.Sprite(mat);
+            sprite.scale.set(3.2, 0.86, 1);
+            sprite.position.set(0, 2.55, 0);
+            return sprite;
+        }
+
+        function rebuild3DNameSprites() {
+            npcSprites.forEach(item => {
+                if (item.sprite && item.parent) item.parent.remove(item.sprite);
+                const cfg = getCharById(item.charId);
+                const newSprite = createMasterNameSprite(
+                    getCharName(item.charId),
+                    cfg ? cfg.title : '',
+                    cfg ? cfg.badgeColor : '#38bdf8'
+                );
+                item.parent.add(newSprite);
+                item.sprite = newSprite;
+            });
+        }
+
+        function addStatusBeacon(parent, zoneKey, x, y, z) {
+            const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.05, 0.7), createMat(0x1e293b));
+            pole.position.set(x, y + 0.35, z);
+            parent.add(pole);
+
+            const lampMat = new THREE.MeshBasicMaterial({ color: 0x22c55e });
+            const lamp = new THREE.Mesh(new THREE.CylinderGeometry(0.13, 0.13, 0.32, 16), lampMat);
+            lamp.position.set(x, y + 0.8, z);
+            parent.add(lamp);
+
+            beaconMeshes[zoneKey] = lampMat;
+        }
+
+        function buildAllElevenStations() {
+            // 1. press_200t
+            const pressGroup = new THREE.Group();
+            pressGroup.position.set(-15.5, 0, -10.5);
+            buildPowerPress(pressGroup, -1.8, 0, 0x0284c7);
+            buildPowerPress(pressGroup, 1.8, 0, 0x0369a1);
+            addNamedNPC(pressGroup, 0, 2.5, 'tech');
+            addStatusBeacon(pressGroup, 'press_200t', -2.7, 4.7, 0.8);
+            const pressLabel = createZoneLabelSprite('氣壓沖床區', '200T 連續模');
+            pressLabel.position.set(0, 6.0, 0);
+            pressGroup.add(pressLabel);
+            scene.add(pressGroup);
+            interactables['press_200t'] = { pos: new THREE.Vector3(-15.5, 0, -6.5), label: '氣壓沖床區' };
+
+            // 2. cnc_brake
+            const benderGroup = new THREE.Group();
+            benderGroup.position.set(-5.0, 0, -10.5);
+            buildCNCBender(benderGroup);
+            addNamedNPC(benderGroup, 1.8, 2.3, 'bender_master');
+            addStatusBeacon(benderGroup, 'cnc_brake', -2.1, 3.4, 0.4);
+            const benderLabel = createZoneLabelSprite('CNC折床區', '折彎 / V槽');
+            benderLabel.position.set(0, 5.0, 0);
+            benderGroup.add(benderLabel);
+            scene.add(benderGroup);
+            interactables['cnc_brake'] = { pos: new THREE.Vector3(-5.0, 0, -6.5), label: 'CNC折床區' };
+
+            // 3. laser_nct
+            const laserGroup = new THREE.Group();
+            laserGroup.position.set(5.5, 0, -10.5);
+            buildLaserStockArea(laserGroup);
+            addNamedNPC(laserGroup, -1.6, 2.2, 'bender_master');
+            addStatusBeacon(laserGroup, 'laser_nct', 2.4, 2.4, -1.4);
+            const laserLabel = createZoneLabelSprite('NCT/雷射備料區', '板材棧板 / 切割');
+            laserLabel.position.set(0, 4.6, -1.0);
+            laserGroup.add(laserLabel);
+            scene.add(laserGroup);
+            interactables['laser_nct'] = { pos: new THREE.Vector3(5.5, 0, -6.5), label: 'NCT/雷射備料區' };
+
+            // 4. surface_grinder
+            const grinderGroup = new THREE.Group();
+            grinderGroup.position.set(15.5, 0, -10.5);
+            buildSurfaceGrinder(grinderGroup);
+            addNamedNPC(grinderGroup, -1.6, 2.0, 'grinder_master');
+            addStatusBeacon(grinderGroup, 'surface_grinder', 1.3, 2.7, -0.3);
+            const grinderLabel = createZoneLabelSprite('平面研磨機', '沖頭研磨 / 砂輪修整');
+            grinderLabel.position.set(0, 4.4, 0);
+            grinderGroup.add(grinderLabel);
+            scene.add(grinderGroup);
+            interactables['surface_grinder'] = { pos: new THREE.Vector3(15.5, 0, -6.5), label: '平面研磨機' };
+
+            // 5. radial_drill
+            const radialGroup = new THREE.Group();
+            radialGroup.position.set(-15.5, 0, 0.8);
+            buildRadialDrill(radialGroup);
+            addNamedNPC(radialGroup, 1.8, 1.4, 'sec_master');
+            addStatusBeacon(radialGroup, 'radial_drill', -1.2, 3.6, -0.5);
+            const radialLabel = createZoneLabelSprite('旋臂鑽床區', '大件擴孔 / 旋臂鎖緊');
+            radialLabel.position.set(0, 4.9, 0);
+            radialGroup.add(radialLabel);
+            scene.add(radialGroup);
+            interactables['radial_drill'] = { pos: new THREE.Vector3(-15.5, 0, 4.5), label: '旋臂鑽床區' };
+
+            // 6. bench_drill
+            const drillGroup = new THREE.Group();
+            drillGroup.position.set(-5.2, 0, 0.8);
+            buildBenchDrill(drillGroup);
+            addNamedNPC(drillGroup, 1.5, 1.3, 'sec_master');
+            addStatusBeacon(drillGroup, 'bench_drill', -0.9, 2.8, -0.2);
+            const drillLabel = createZoneLabelSprite('台式鑽孔機區', '中心沖 / V型夾具');
+            drillLabel.position.set(0, 4.2, 0);
+            drillGroup.add(drillLabel);
+            scene.add(drillGroup);
+            interactables['bench_drill'] = { pos: new THREE.Vector3(-5.2, 0, 4.5), label: '台式鑽孔機區' };
+
+            // 7. rivet_press
+            const rivetGroup = new THREE.Group();
+            rivetGroup.position.set(5.2, 0, 0.8);
+            buildRivetMachine(rivetGroup);
+            addNamedNPC(rivetGroup, 1.5, 1.3, 'weld_master');
+            addStatusBeacon(rivetGroup, 'rivet_press', -0.9, 3.0, -0.2);
+            const rivetLabel = createZoneLabelSprite('鉚釘機 (PEM壓合)', '壓鉚螺母 / 扭力測試');
+            rivetLabel.position.set(0, 4.4, 0);
+            rivetGroup.add(rivetLabel);
+            scene.add(rivetGroup);
+            interactables['rivet_press'] = { pos: new THREE.Vector3(5.2, 0, 4.5), label: '鉚釘機 (PEM壓合)' };
+
+            // 8. spot_welder
+            const spotGroup = new THREE.Group();
+            spotGroup.position.set(15.5, 0, 0.8);
+            buildSpotWelder(spotGroup);
+            addNamedNPC(spotGroup, -1.6, 1.3, 'weld_master');
+            addStatusBeacon(spotGroup, 'spot_welder', 0.9, 2.9, -0.3);
+            const spotLabel = createZoneLabelSprite('電阻點焊機區', '銅電極 / 避免假焊');
+            spotLabel.position.set(0, 4.3, 0);
+            spotGroup.add(spotLabel);
+            scene.add(spotGroup);
+            interactables['spot_welder'] = { pos: new THREE.Vector3(15.5, 0, 4.5), label: '電阻點焊機區' };
+
+            // 9. tapping_arm
+            const tapGroup = new THREE.Group();
+            tapGroup.position.set(-14.5, 0, 11.2);
+            buildTappingMachine(tapGroup);
+            addNamedNPC(tapGroup, 1.6, 0.4, 'sec_master');
+            addStatusBeacon(tapGroup, 'tapping_arm', -1.1, 2.3, -0.4);
+            const tapLabel = createZoneLabelSprite('懸臂攻牙機區', '盲孔攻牙 / 螺旋絲攻');
+            tapLabel.position.set(0, 3.7, 0);
+            tapGroup.add(tapLabel);
+            scene.add(tapGroup);
+            interactables['tapping_arm'] = { pos: new THREE.Vector3(-14.5, 0, 8.2), label: '懸臂攻牙機區' };
+
+            // 10. qc_station
+            const qcGroup = new THREE.Group();
+            qcGroup.position.set(0, 0, 11.5);
+            buildQCTable(qcGroup);
+            addNamedNPC(qcGroup, 2.0, 0, 'qc_staff');
+            addStatusBeacon(qcGroup, 'qc_station', -1.4, 1.1, 0.6);
+            const qcLabel = createZoneLabelSprite('品檢與圖面桌', '首件檢驗 / 公差量測');
+            qcLabel.position.set(0, 3.2, 0);
+            qcGroup.add(qcLabel);
+            scene.add(qcGroup);
+            interactables['qc_station'] = { pos: new THREE.Vector3(0, 0, 8.5), label: '品檢與圖面桌' };
+
+            // 11. office_pm
+            const officeGroup = new THREE.Group();
+            officeGroup.position.set(14.5, 0, 11.5);
+            buildOfficeArea(officeGroup);
+            addNamedNPC(officeGroup, -1.9, 0, 'pmc');
+            addStatusBeacon(officeGroup, 'office_pm', 1.3, 1.0, 0.5);
+            const officeLabel = createZoneLabelSprite('廠長/生管辦公區', '急件插單 / 特採協調');
+            officeLabel.position.set(0, 3.4, 0);
+            officeGroup.add(officeLabel);
+            scene.add(officeGroup);
+            interactables['office_pm'] = { pos: new THREE.Vector3(14.5, 0, 8.5), label: '廠長/生管辦公區' };
+        }
+
+        function buildPowerPress(parent, offsetX, offsetZ, bodyColor) {
+            const g = new THREE.Group();
+            g.position.set(offsetX, 0, offsetZ);
+            const bodyMat = createMat(bodyColor, 0.5, 0.4);
+            const steelMat = createMat(0xcbd5e1, 0.8, 0.25);
+            const darkMat = createMat(0x1e293b, 0.4, 0.6);
+
+            const base = new THREE.Mesh(new THREE.BoxGeometry(2.2, 1.2, 2.4), bodyMat);
+            base.position.y = 0.6;
+            base.castShadow = true;
+            g.add(base);
+
+            const backCol = new THREE.Mesh(new THREE.BoxGeometry(2.0, 3.5, 1.0), bodyMat);
+            backCol.position.set(0, 2.35, -0.65);
+            backCol.castShadow = true;
+            g.add(backCol);
+
+            const crown = new THREE.Mesh(new THREE.BoxGeometry(2.2, 1.0, 2.3), bodyMat);
+            crown.position.set(0, 4.1, 0);
+            crown.castShadow = true;
+            g.add(crown);
+
+            const dieLower = new THREE.Mesh(new THREE.BoxGeometry(1.4, 0.35, 1.2), steelMat);
+            dieLower.position.set(0, 1.38, 0.3);
+            g.add(dieLower);
+
+            const dieUpper = new THREE.Mesh(new THREE.BoxGeometry(1.3, 0.45, 1.1), steelMat);
+            dieUpper.position.set(0, 2.35, 0.3);
+            g.add(dieUpper);
+
+            const flywheel = new THREE.Mesh(new THREE.CylinderGeometry(0.85, 0.85, 0.28, 20), darkMat);
+            flywheel.rotation.z = Math.PI / 2;
+            flywheel.position.set(1.22, 3.7, -0.3);
+            g.add(flywheel);
+
+            parent.add(g);
+        }
+
+        function buildCNCBender(parent) {
+            const bodyMat = createMat(0xe2e8f0, 0.4, 0.4);
+            const accentMat = createMat(0xf59e0b, 0.3, 0.5);
+            const steelMat = createMat(0x94a3b8, 0.85, 0.2);
+
+            const mainBody = new THREE.Mesh(new THREE.BoxGeometry(4.6, 3.4, 1.8), bodyMat);
+            mainBody.position.set(0, 1.7, -0.4);
+            mainBody.castShadow = true;
+            parent.add(mainBody);
+
+            const lowerBed = new THREE.Mesh(new THREE.BoxGeometry(4.4, 1.1, 0.7), accentMat);
+            lowerBed.position.set(0, 0.55, 0.7);
+            lowerBed.castShadow = true;
+            parent.add(lowerBed);
+
+            const upperRam = new THREE.Mesh(new THREE.BoxGeometry(4.4, 1.0, 0.6), accentMat);
+            upperRam.position.set(0, 2.6, 0.7);
+            upperRam.castShadow = true;
+            parent.add(upperRam);
+
+            const punchBlade = new THREE.Mesh(new THREE.BoxGeometry(4.2, 0.4, 0.15), steelMat);
+            punchBlade.position.set(0, 1.95, 0.7);
+            parent.add(punchBlade);
+        }
+
+        function buildLaserStockArea(parent) {
+            const woodMat = createMat(0xb45309, 0.1, 0.9);
+            const steelSheetMat = createMat(0xd1d5db, 0.9, 0.2);
+
+            [-1.5, 1.5].forEach((xPos, idx) => {
+                const pallet = new THREE.Mesh(new THREE.BoxGeometry(2.4, 0.25, 1.9), woodMat);
+                pallet.position.set(xPos, 0.125, 0.3);
+                pallet.castShadow = true;
+                parent.add(pallet);
+
+                const stackHeight = idx === 0 ? 0.6 : 0.35;
+                const sheets = new THREE.Mesh(new THREE.BoxGeometry(2.2, stackHeight, 1.7), steelSheetMat);
+                sheets.position.set(xPos, 0.25 + stackHeight / 2, 0.3);
+                sheets.castShadow = true;
+                parent.add(sheets);
+            });
+
+            const machine = new THREE.Mesh(new THREE.BoxGeometry(4.8, 2.4, 2.4), createMat(0x0f766e, 0.4, 0.4));
+            machine.position.set(0, 1.2, -2.2);
+            machine.castShadow = true;
+            parent.add(machine);
+        }
+
+        function buildSurfaceGrinder(parent) {
+            const bodyMat = createMat(0x059669, 0.4, 0.5);
+            const steelMat = createMat(0xe2e8f0, 0.85, 0.2);
+            const darkMat = createMat(0x1e293b, 0.5, 0.5);
+
+            const base = new THREE.Mesh(new THREE.BoxGeometry(2.2, 1.2, 1.6), bodyMat);
+            base.position.y = 0.6;
+            base.castShadow = true;
+            parent.add(base);
+
+            const table = new THREE.Mesh(new THREE.BoxGeometry(3.0, 0.25, 0.9), steelMat);
+            table.position.set(0, 1.35, 0.2);
+            table.castShadow = true;
+            parent.add(table);
+
+            const magChuck = new THREE.Mesh(new THREE.BoxGeometry(1.6, 0.18, 0.65), darkMat);
+            magChuck.position.set(0, 1.56, 0.2);
+            parent.add(magChuck);
+
+            const column = new THREE.Mesh(new THREE.BoxGeometry(1.1, 2.5, 0.9), bodyMat);
+            column.position.set(0, 1.45, -0.55);
+            column.castShadow = true;
+            parent.add(column);
+
+            const wheelGuard = new THREE.Mesh(new THREE.CylinderGeometry(0.42, 0.42, 0.32, 20), createMat(0xf59e0b, 0.4, 0.4));
+            wheelGuard.rotation.z = Math.PI / 2;
+            wheelGuard.position.set(0, 2.15, 0.15);
+            parent.add(wheelGuard);
+        }
+
+        function buildRadialDrill(parent) {
+            const bodyMat = createMat(0x2563eb, 0.45, 0.45);
+            const steelMat = createMat(0xcbd5e1, 0.85, 0.2);
+            const darkMat = createMat(0x1e293b, 0.5, 0.5);
+
+            const base = new THREE.Mesh(new THREE.BoxGeometry(2.8, 0.35, 1.8), darkMat);
+            base.position.y = 0.175;
+            base.castShadow = true;
+            parent.add(base);
+
+            const column = new THREE.Mesh(new THREE.CylinderGeometry(0.35, 0.4, 3.6, 20), steelMat);
+            column.position.set(-1.0, 1.9, -0.3);
+            column.castShadow = true;
+            parent.add(column);
+
+            const boxTable = new THREE.Mesh(new THREE.BoxGeometry(1.1, 0.85, 1.0), bodyMat);
+            boxTable.position.set(0.4, 0.75, 0.1);
+            boxTable.castShadow = true;
+            parent.add(boxTable);
+
+            const arm = new THREE.Mesh(new THREE.BoxGeometry(2.9, 0.48, 0.55), bodyMat);
+            arm.position.set(0.15, 2.85, -0.3);
+            arm.castShadow = true;
+            parent.add(arm);
+
+            const head = new THREE.Mesh(new THREE.BoxGeometry(0.75, 0.9, 0.75), bodyMat);
+            head.position.set(0.7, 2.75, -0.15);
+            parent.add(head);
+        }
+
+        function buildBenchDrill(parent) {
+            const benchMat = createMat(0x475569, 0.4, 0.6);
+            const bodyMat = createMat(0xd97706, 0.45, 0.45);
+            const steelMat = createMat(0xe2e8f0, 0.85, 0.2);
+
+            const cabinet = new THREE.Mesh(new THREE.BoxGeometry(2.0, 0.95, 1.4), benchMat);
+            cabinet.position.y = 0.475;
+            cabinet.castShadow = true;
+            parent.add(cabinet);
+
+            const pillar = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.14, 1.85, 16), steelMat);
+            pillar.position.set(0, 1.85, -0.25);
+            pillar.castShadow = true;
+            parent.add(pillar);
+
+            const roundTable = new THREE.Mesh(new THREE.CylinderGeometry(0.45, 0.45, 0.1, 20), steelMat);
+            roundTable.position.set(0, 1.55, 0.05);
+            parent.add(roundTable);
+
+            const beltHood = new THREE.Mesh(new THREE.BoxGeometry(0.55, 0.45, 1.05), bodyMat);
+            beltHood.position.set(0, 2.65, -0.05);
+            beltHood.castShadow = true;
+            parent.add(beltHood);
+        }
+
+        function buildRivetMachine(parent) {
+            const bodyMat = createMat(0x7c3aed, 0.45, 0.4);
+            const steelMat = createMat(0xe2e8f0, 0.85, 0.2);
+            const darkMat = createMat(0x1e293b, 0.5, 0.5);
+
+            const base = new THREE.Mesh(new THREE.BoxGeometry(1.6, 1.0, 1.8), darkMat);
+            base.position.y = 0.5;
+            base.castShadow = true;
+            parent.add(base);
+
+            const cBack = new THREE.Mesh(new THREE.BoxGeometry(0.9, 1.6, 0.8), bodyMat);
+            cBack.position.set(0, 1.7, -0.45);
+            cBack.castShadow = true;
+            parent.add(cBack);
+
+            const cTop = new THREE.Mesh(new THREE.BoxGeometry(0.9, 0.45, 1.5), bodyMat);
+            cTop.position.set(0, 2.4, -0.1);
+            cTop.castShadow = true;
+            parent.add(cTop);
+
+            const cylinder = new THREE.Mesh(new THREE.CylinderGeometry(0.28, 0.28, 0.8, 16), steelMat);
+            cylinder.position.set(0, 2.95, 0.35);
+            parent.add(cylinder);
+        }
+
+        function buildSpotWelder(parent) {
+            const bodyMat = createMat(0xea580c, 0.4, 0.45);
+            const copperMat = createMat(0xd97706, 0.9, 0.25);
+
+            const cabinet = new THREE.Mesh(new THREE.BoxGeometry(1.5, 2.5, 1.6), bodyMat);
+            cabinet.position.set(0, 1.25, -0.2);
+            cabinet.castShadow = true;
+            parent.add(cabinet);
+
+            const upperArm = new THREE.Mesh(new THREE.CylinderGeometry(0.07, 0.07, 1.1, 12), copperMat);
+            upperArm.rotation.x = Math.PI / 2;
+            upperArm.position.set(0, 1.95, 0.85);
+            parent.add(upperArm);
+
+            const lowerArm = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.08, 1.1, 12), copperMat);
+            lowerArm.rotation.x = Math.PI / 2;
+            lowerArm.position.set(0, 1.35, 0.85);
+            parent.add(lowerArm);
+        }
+
+        function buildTappingMachine(parent) {
+            const cartMat = createMat(0x0d9488, 0.4, 0.5);
+            const steelMat = createMat(0xe2e8f0, 0.85, 0.2);
+            const darkMat = createMat(0x1e293b, 0.5, 0.5);
+
+            const cart = new THREE.Mesh(new THREE.BoxGeometry(2.2, 0.95, 1.5), cartMat);
+            cart.position.y = 0.475;
+            cart.castShadow = true;
+            parent.add(cart);
+
+            const post = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.12, 0.95, 16), steelMat);
+            post.position.set(-0.7, 1.48, -0.35);
+            parent.add(post);
+
+            const arm1 = new THREE.Mesh(new THREE.BoxGeometry(0.95, 0.14, 0.14), steelMat);
+            arm1.position.set(-0.25, 1.88, -0.2);
+            arm1.rotation.y = -0.3;
+            parent.add(arm1);
+
+            const motor = new THREE.Mesh(new THREE.CylinderGeometry(0.16, 0.16, 0.55, 16), darkMat);
+            motor.position.set(0.55, 1.68, 0.15);
+            parent.add(motor);
+        }
+
+        function buildQCTable(parent) {
+            const tableMat = createMat(0x475569, 0.5, 0.5);
+            const topMat = createMat(0x10b981, 0.1, 0.7);
+
+            const tableTop = new THREE.Mesh(new THREE.BoxGeometry(3.2, 0.15, 1.8), topMat);
+            tableTop.position.y = 1.0;
+            tableTop.castShadow = true;
+            parent.add(tableTop);
+
+            [[-1.4, -0.7], [1.4, -0.7], [-1.4, 0.7], [1.4, 0.7]].forEach(([lx, lz]) => {
+                const leg = new THREE.Mesh(new THREE.BoxGeometry(0.15, 1.0, 0.15), tableMat);
+                leg.position.set(lx, 0.5, lz);
+                parent.add(leg);
+            });
+        }
+
+        function buildOfficeArea(parent) {
+            const deskMat = createMat(0x78350f, 0.2, 0.7);
+            const desk = new THREE.Mesh(new THREE.BoxGeometry(3.0, 0.95, 1.5), deskMat);
+            desk.position.y = 0.475;
+            desk.castShadow = true;
+            parent.add(desk);
+
+            const boardFrame = new THREE.Mesh(new THREE.BoxGeometry(2.6, 1.6, 0.1), createMat(0x94a3b8));
+            boardFrame.position.set(0, 1.8, 1.2);
+            parent.add(boardFrame);
+
+            const boardFace = new THREE.Mesh(new THREE.PlaneGeometry(2.4, 1.4), new THREE.MeshBasicMaterial({ color: 0xf8fafc }));
+            boardFace.position.set(0, 1.8, 1.14);
+            boardFace.rotation.y = Math.PI;
+            parent.add(boardFace);
+        }
+
+        function addNamedNPC(parent, x, z, charId) {
+            const cfg = getCharById(charId);
+            const shirtColor = cfg ? cfg.shirtColor : 0x38bdf8;
+
+            const npc = new THREE.Group();
+            npc.position.set(x, 0, z);
+
+            const body = new THREE.Mesh(new THREE.CylinderGeometry(0.32, 0.38, 1.1, 12), createMat(shirtColor, 0.2, 0.7));
+            body.position.y = 0.75;
+            body.castShadow = true;
+            npc.add(body);
+
+            const head = new THREE.Mesh(new THREE.SphereGeometry(0.28, 16, 16), createMat(0xfde68a, 0.1, 0.6));
+            head.position.y = 1.55;
+            head.castShadow = true;
+            npc.add(head);
+
+            const helmet = new THREE.Mesh(new THREE.SphereGeometry(0.31, 16, 12, 0, Math.PI * 2, 0, Math.PI / 2), createMat(0xffffff));
+            helmet.position.y = 1.62;
+            npc.add(helmet);
+
+            parent.add(npc);
+            npcSprites.push({ parent: npc, charId, sprite: null });
+        }
+
+        function buildPlayer() {
+            playerGroup = new THREE.Group();
+            playerGroup.position.copy(playerState.pos);
+
+            const torso = new THREE.Mesh(new THREE.CylinderGeometry(0.35, 0.4, 1.15, 14), createMat(0x1d4ed8, 0.2, 0.6));
+            torso.position.y = 0.8;
+            torso.castShadow = true;
+            playerGroup.add(torso);
+
+            const vest = new THREE.Mesh(new THREE.CylinderGeometry(0.37, 0.41, 0.45, 14), new THREE.MeshBasicMaterial({ color: 0xfacc15 }));
+            vest.position.y = 0.85;
+            playerGroup.add(vest);
+
+            const head = new THREE.Mesh(new THREE.SphereGeometry(0.3, 16, 16), createMat(0xfef08a, 0.1, 0.6));
+            head.position.y = 1.65;
+            head.castShadow = true;
+            playerGroup.add(head);
+
+            const helmet = new THREE.Mesh(new THREE.SphereGeometry(0.33, 16, 12, 0, Math.PI * 2, 0, Math.PI / 2), createMat(0xf59e0b, 0.3, 0.4));
+            helmet.position.y = 1.72;
+            playerGroup.add(helmet);
+
+            scene.add(playerGroup);
+        }
+
+        function buildExclamationMarker() {
+            exclamationMesh = new THREE.Group();
+
+            const bar = new THREE.Mesh(
+                new THREE.BoxGeometry(0.28, 0.95, 0.28),
+                new THREE.MeshBasicMaterial({ color: 0xef4444 })
+            );
+            bar.position.y = 0.7;
+            exclamationMesh.add(bar);
+
+            const dot = new THREE.Mesh(
+                new THREE.BoxGeometry(0.28, 0.28, 0.28),
+                new THREE.MeshBasicMaterial({ color: 0xfbbf24 })
+            );
+            dot.position.y = 0.0;
+            exclamationMesh.add(dot);
+
+            const groundCircle = new THREE.Mesh(
+                new THREE.RingGeometry(0.9, 1.25, 32),
+                new THREE.MeshBasicMaterial({ color: 0xef4444, side: THREE.DoubleSide })
+            );
+            groundCircle.rotation.x = -Math.PI / 2;
+            groundCircle.position.y = -2.45;
+            exclamationMesh.add(groundCircle);
+
+            exclamationMesh.visible = false;
+            scene.add(exclamationMesh);
+        }
+
+        // =========================================================================
+        // 7. 攝影機控制與操作
+        // =========================================================================
+        function updateCameraTransform(snap = false) {
+            const horizDist = Math.cos(cameraRig.pitch) * cameraRig.distance;
+            const vertDist = Math.sin(cameraRig.pitch) * cameraRig.distance;
+
+            const desiredPos = new THREE.Vector3(
+                cameraRig.panTarget.x + Math.sin(cameraRig.yaw) * horizDist,
+                Math.max(4.5, cameraRig.panTarget.y + vertDist),
+                cameraRig.panTarget.z + Math.cos(cameraRig.yaw) * horizDist
+            );
+
+            if (snap) {
+                camera.position.copy(desiredPos);
+            } else {
+                camera.position.lerp(desiredPos, 0.14);
+            }
+            camera.lookAt(cameraRig.panTarget);
+        }
+
+        function clampCameraPanTarget() {
+            cameraRig.panTarget.x = THREE.MathUtils.clamp(cameraRig.panTarget.x, -22, 22);
+            cameraRig.panTarget.z = THREE.MathUtils.clamp(cameraRig.panTarget.z, -15, 16);
+        }
+
+        function toggleFollowLock() {
+            SoundFX.click();
+            cameraRig.followPlayer = !cameraRig.followPlayer;
+            if (cameraRig.followPlayer) {
+                cameraRig.panTarget.set(playerState.pos.x, 0.5, playerState.pos.z - 1.0);
+                clampCameraPanTarget();
+            }
+            updateFollowButtonUI();
+        }
+
+        function updateFollowButtonUI() {
+            const iconEl = document.getElementById('follow-lock-icon');
+            const labelEl = document.getElementById('follow-lock-label');
+            if (!iconEl || !labelEl) return;
+
+            if (cameraRig.followPlayer) {
+                iconEl.textContent = '🔒';
+                labelEl.textContent = '跟隨角色中';
+            } else {
+                iconEl.textContent = '🔓';
+                labelEl.textContent = '自由平移';
+            }
+        }
+
+        function resetCameraView() {
+            SoundFX.click();
+            cameraRig.yaw = 0;
+            cameraRig.pitch = 0.66;
+            cameraRig.distance = 28;
+            cameraRig.panTarget.set(0, 0.5, 1.5);
+            clampCameraPanTarget();
+            updateCameraTransform(false);
+        }
+
+        function setupCameraAndInputControls() {
+            const canvas = document.getElementById('game-canvas');
+            const raycaster = new THREE.Raycaster();
+            const pointer = new THREE.Vector2();
+
+            window.addEventListener('keydown', (e) => {
+                if (e.key in playerState.keys) {
+                    playerState.keys[e.key] = true;
+                    playerState.targetPos = null;
+                }
+                if ((e.key === 'e' || e.key === 'E') && gameState.started && !gameState.paused && gameState.nearTarget) {
+                    triggerCurrentInteraction();
+                }
+            });
+
+            window.addEventListener('keyup', (e) => {
+                if (e.key in playerState.keys) {
+                    playerState.keys[e.key] = false;
+                }
+            });
+
+            canvas.addEventListener('contextmenu', (e) => e.preventDefault());
+
+            canvas.addEventListener('pointerdown', (e) => {
+                if (!gameState.started || gameState.paused) return;
+                if (e.target !== canvas) return;
+
+                cameraRig.dragStartX = e.clientX;
+                cameraRig.dragStartY = e.clientY;
+                cameraRig.lastPointerX = e.clientX;
+                cameraRig.lastPointerY = e.clientY;
+                cameraRig.dragMoved = false;
+
+                if (e.button === 2 || (e.button === 0 && e.shiftKey)) {
+                    cameraRig.isRightDragging = true;
+                    canvas.classList.add('is-rotating');
+                } else if (e.button === 0) {
+                    cameraRig.isLeftDragging = true;
+                    canvas.classList.add('is-panning');
+                }
+            });
+
+            window.addEventListener('pointermove', (e) => {
+                if (!cameraRig.isLeftDragging && !cameraRig.isRightDragging) return;
+
+                const dx = e.clientX - cameraRig.lastPointerX;
+                const dy = e.clientY - cameraRig.lastPointerY;
+                cameraRig.lastPointerX = e.clientX;
+                cameraRig.lastPointerY = e.clientY;
+
+                const totalDist = Math.hypot(e.clientX - cameraRig.dragStartX, e.clientY - cameraRig.dragStartY);
+                if (totalDist > 6) {
+                    cameraRig.dragMoved = true;
+                }
+
+                if (cameraRig.isRightDragging) {
+                    cameraRig.yaw -= dx * 0.0065;
+                    cameraRig.pitch = THREE.MathUtils.clamp(cameraRig.pitch + dy * 0.0055, 0.28, 1.3);
+                    updateCameraTransform(true);
+                } else if (cameraRig.isLeftDragging && cameraRig.dragMoved) {
+                    if (cameraRig.followPlayer) {
+                        cameraRig.followPlayer = false;
+                        updateFollowButtonUI();
+                    }
+                    const panScale = cameraRig.distance * 0.0019;
+                    const rightVec = new THREE.Vector3(Math.cos(cameraRig.yaw), 0, -Math.sin(cameraRig.yaw));
+                    const forwardVec = new THREE.Vector3(-Math.sin(cameraRig.yaw), 0, -Math.cos(cameraRig.yaw));
+
+                    cameraRig.panTarget.addScaledVector(rightVec, -dx * panScale);
+                    cameraRig.panTarget.addScaledVector(forwardVec, dy * panScale);
+                    clampCameraPanTarget();
+                    updateCameraTransform(true);
+                }
+            });
+
+            window.addEventListener('pointerup', (e) => {
+                const wasLeft = cameraRig.isLeftDragging;
+                const didDrag = cameraRig.dragMoved;
+
+                cameraRig.isLeftDragging = false;
+                cameraRig.isRightDragging = false;
+                canvas.classList.remove('is-panning', 'is-rotating');
+
+                if (wasLeft && !didDrag && gameState.started && !gameState.paused && e.target === canvas) {
+                    pointer.x = (e.clientX / window.innerWidth) * 2 - 1;
+                    pointer.y = -(e.clientY / window.innerHeight) * 2 + 1;
+                    raycaster.setFromCamera(pointer, camera);
+
+                    const intersects = raycaster.intersectObjects(scene.children, true);
+                    for (let hit of intersects) {
+                        if (hit.object.name === 'factory-floor') {
+                            const clampedX = THREE.MathUtils.clamp(hit.point.x, -20, 20);
+                            const clampedZ = THREE.MathUtils.clamp(hit.point.z, -14.5, 15.5);
+                            playerState.targetPos = new THREE.Vector3(clampedX, 0, clampedZ);
+                            targetRing.position.set(clampedX, 0.04, clampedZ);
+                            targetRing.visible = true;
+                            SoundFX.click();
+                            break;
+                        }
+                    }
+                }
+            });
+
+            canvas.addEventListener('wheel', (e) => {
+                if (!gameState.started) return;
+                e.preventDefault();
+                cameraRig.distance = THREE.MathUtils.clamp(cameraRig.distance + e.deltaY * 0.016, 12, 48);
+                updateCameraTransform(true);
+            }, { passive: false });
+
+            // 手機虛擬搖桿
+            const joyZone = document.getElementById('joystick-zone');
+            const joyKnob = document.getElementById('joystick-knob');
+            let joyActive = false;
+
+            const handleJoyMove = (clientX, clientY) => {
+                const rect = joyZone.getBoundingClientRect();
+                const centerX = rect.left + rect.width / 2;
+                const centerY = rect.top + rect.height / 2;
+                const maxDist = rect.width / 2 - 20;
+
+                let dx = clientX - centerX;
+                let dy = clientY - centerY;
+                const dist = Math.hypot(dx, dy);
+
+                if (dist > maxDist) {
+                    dx = (dx / dist) * maxDist;
+                    dy = (dy / dist) * maxDist;
+                }
+
+                joyKnob.style.transform = `translate(calc(-50% + ${dx}px), calc(-50% + ${dy}px))`;
+                playerState.joyVec.x = dx / maxDist;
+                playerState.joyVec.y = dy / maxDist;
+                playerState.targetPos = null;
+            };
+
+            joyZone.addEventListener('touchstart', (e) => {
+                e.preventDefault();
+                joyActive = true;
+                handleJoyMove(e.touches[0].clientX, e.touches[0].clientY);
+            }, { passive: false });
+
+            joyZone.addEventListener('touchmove', (e) => {
+                e.preventDefault();
+                if (!joyActive) return;
+                handleJoyMove(e.touches[0].clientX, e.touches[0].clientY);
+            }, { passive: false });
+
+            const resetJoy = () => {
+                joyActive = false;
+                joyKnob.style.transform = 'translate(-50%, -50%)';
+                playerState.joyVec.x = 0;
+                playerState.joyVec.y = 0;
+            };
+            joyZone.addEventListener('touchend', resetJoy);
+            joyZone.addEventListener('touchcancel', resetJoy);
+        }
+
+        function autoWalkToCurrentTarget() {
+            if (!gameState.currentTargetZone) return;
+            SoundFX.click();
+            const targetInfo = interactables[gameState.currentTargetZone];
+            if (targetInfo) {
+                playerState.targetPos = targetInfo.pos.clone();
+                targetRing.position.set(targetInfo.pos.x, 0.04, targetInfo.pos.z);
+                targetRing.visible = true;
+            }
+        }
+
+        // =========================================================================
+        // 8. 遊戲流程與結算
+        // =========================================================================
+        function selectRole(roleKey) {
+            SoundFX.success();
+            const role = getCharById(roleKey);
+            if (!role) return;
+
+            gameState.role = role;
+            gameState.started = true;
+            gameState.paused = false;
+            gameState.timeMinutes = 8 * 60;
+            gameState.progress = role.progress;
+            gameState.stress = role.stress;
+            gameState.quality = role.quality;
+            gameState.currentEventIndex = 0;
+
+            const shuffled = [...EVENTS_POOL].sort(() => Math.random() - 0.5);
+            const picked = [];
+            const usedZones = new Set();
+            for (const ev of shuffled) {
+                if (!usedZones.has(ev.zoneKey)) {
+                    picked.push(ev);
+                    usedZones.add(ev.zoneKey);
+                }
+                if (picked.length === 5) break;
+            }
+            gameState.eventQueue = picked;
+
+            document.getElementById('hud-role-icon').textContent = role.icon;
+            document.getElementById('hud-role-display').textContent = `${getCharName(role.id)}（${role.title}）`;
+
+            document.getElementById('start-screen').classList.add('hidden');
+            document.getElementById('hud-layer').classList.remove('hidden');
+
+            playerState.pos.set(0, 0, 5.5);
+            playerGroup.position.copy(playerState.pos);
+            playerState.targetPos = null;
+
+            cameraRig.panTarget.set(0, 0.5, 1.5);
+            updateCameraTransform(true);
+
+            setupCurrentEventTarget();
+            updateHUD();
+        }
+
+        function setupCurrentEventTarget() {
+            const ev = gameState.eventQueue[gameState.currentEventIndex];
+            gameState.currentTargetZone = ev.zoneKey;
+            const zoneInfo = interactables[ev.zoneKey];
+
+            Object.entries(beaconMeshes).forEach(([key, mat]) => {
+                mat.color.setHex(key === ev.zoneKey ? 0xef4444 : 0x22c55e);
+            });
+
+            exclamationMesh.position.set(zoneInfo.pos.x, 2.8, zoneInfo.pos.z);
+            exclamationMesh.visible = true;
+
+            document.getElementById('quest-target-text').textContent = `【${zoneInfo.label}】${ev.title}`;
+            SoundFX.alarm();
+        }
+
+        function updateHUD() {
+            const timeStr = formatClockString(gameState.timeMinutes);
+            document.getElementById('hud-time').textContent = timeStr;
+            document.getElementById('hud-event-count').textContent = `事件 ${Math.min(gameState.currentEventIndex + 1, 5)}/5`;
+
+            const prog = THREE.MathUtils.clamp(gameState.progress, 0, 100);
+            const stress = THREE.MathUtils.clamp(gameState.stress, 0, 100);
+
+            document.getElementById('hud-progress-text').textContent = `${prog}%`;
+            document.getElementById('hud-progress-bar').style.width = `${prog}%`;
+
+            document.getElementById('hud-stress-text').textContent = `${stress}%`;
+            document.getElementById('hud-stress-bar').style.width = `${stress}%`;
+        }
+
+        function triggerCurrentInteraction() {
+            if (gameState.paused) return;
+            SoundFX.click();
+            gameState.paused = true;
+            playerState.targetPos = null;
+            targetRing.visible = false;
+            document.getElementById('interact-prompt').classList.add('hidden');
+
+            const ev = gameState.eventQueue[gameState.currentEventIndex];
+            const npcCfg = getCharById(ev.npcId);
+            const npcName = getCharName(ev.npcId);
+            const npcTitle = npcCfg ? `（${npcCfg.title}）` : '';
+
+            document.getElementById('event-zone-name').textContent = `區域：${ev.zoneName}`;
+            document.getElementById('event-npc-tag').textContent = `通報人：${npcName}${npcTitle}`;
+            document.getElementById('event-title').textContent = ev.title;
+            document.getElementById('event-desc').innerHTML = formatWithJargon(ev.desc);
+
+            document.getElementById('inline-jargon-box').classList.add('hidden');
+            document.getElementById('event-feedback').classList.add('hidden');
+
+            const optionsContainer = document.getElementById('event-options');
+            optionsContainer.classList.remove('hidden');
+            optionsContainer.innerHTML = ev.options.map((opt, idx) => `
+                <button type="button" onclick="chooseOption(${idx})" class="w-full text-left p-3.5 md:p-4 rounded-xl bg-slate-800/90 hover:bg-slate-700 border border-slate-600 hover:border-amber-400 text-xs md:text-sm text-slate-100 font-medium transition flex items-start gap-3 group">
+                    <span class="shrink-0 w-6 h-6 rounded-lg bg-slate-900 group-hover:bg-amber-400 group-hover:text-slate-950 text-amber-400 font-bold flex items-center justify-center text-xs transition">
+                        ${['A', 'B', 'C'][idx]}
+                    </span>
+                    <span class="leading-relaxed">${escapeHtml(opt.label.replace(/^[ABC]\.\s*/, ''))}</span>
+                </button>
+            `).join('');
+
+            document.getElementById('event-modal').classList.remove('hidden');
+        }
+
+        function chooseOption(idx) {
+            const ev = gameState.eventQueue[gameState.currentEventIndex];
+            const opt = ev.options[idx];
+
+            let progDelta = opt.progress;
+            let stressDelta = opt.stress;
+            let qualDelta = opt.quality;
+
+            if (gameState.role.bonusType === 'schedule' && progDelta > 0) progDelta += 3;
+            if (gameState.role.bonusType === 'quality' && qualDelta < 0) qualDelta += 3;
+            if (gameState.role.bonusType === 'machine' && stressDelta > 0) stressDelta = Math.max(2, stressDelta - 3);
+
+            gameState.progress = THREE.MathUtils.clamp(gameState.progress + progDelta, 0, 100);
+            gameState.stress = THREE.MathUtils.clamp(gameState.stress + stressDelta, 0, 100);
+            gameState.quality = THREE.MathUtils.clamp(gameState.quality + qualDelta, 50, 100);
+            gameState.timeMinutes += opt.minutes;
+
+            if (opt.type === 'good') SoundFX.success();
+            else SoundFX.warning();
+
+            document.getElementById('event-options').classList.add('hidden');
+            const fbBox = document.getElementById('event-feedback');
+            fbBox.classList.remove('hidden');
+
+            document.getElementById('feedback-icon').textContent = opt.type === 'good' ? '✅' : (opt.type === 'warn' ? '⚠️' : '💥');
+            document.getElementById('feedback-heading').textContent = opt.type === 'good' ? '現場處置得當！' : (opt.type === 'warn' ? '勉強過關但留下隱憂' : '現場狀況惡化！');
+            document.getElementById('feedback-text').textContent = opt.feedback;
+
+            const formatStat = (label, val, unit = '%', invertColor = false) => {
+                const isPos = val >= 0;
+                const good = invertColor ? !isPos : isPos;
+                const colorClass = val === 0 ? 'text-slate-400 bg-slate-900' : (good ? 'text-emerald-300 bg-emerald-500/20' : 'text-rose-300 bg-rose-500/20');
+                const sign = val > 0 ? '+' : '';
+                return `<span class="px-2.5 py-1 rounded ${colorClass}">${label} ${sign}${val}${unit}</span>`;
+            };
+
+            document.getElementById('feedback-stats').innerHTML = `
+                ${formatStat('交期進度', progDelta)}
+                ${formatStat('現場壓力', stressDelta, '%', true)}
+                ${formatStat('出貨良率', qualDelta)}
+                <span class="px-2.5 py-1 rounded bg-slate-900 text-amber-300">耗時 +${opt.minutes} 分鐘</span>
+            `;
+
+            updateHUD();
+        }
+
+        function proceedNextEvent() {
+            SoundFX.click();
+            document.getElementById('event-modal').classList.add('hidden');
+            gameState.paused = false;
+            gameState.currentEventIndex++;
+
+            if (gameState.stress >= 100 || gameState.currentEventIndex >= 5) {
+                showEndResult();
+            } else {
+                setupCurrentEventTarget();
+                updateHUD();
+            }
+        }
+
+        function showEndResult() {
+            gameState.started = false;
+            exclamationMesh.visible = false;
+            document.getElementById('hud-layer').classList.add('hidden');
+
+            let endMins = Math.max(gameState.timeMinutes, 17 * 60 + 30);
+            if (gameState.progress < 85) {
+                endMins += (85 - gameState.progress) * 3;
+            }
+            const clockOutStr = formatClockString(endMins);
+
+            let title = '鐵皮屋人形救火隊';
+            let subtitle = '雖然鐵皮屋現場狀況百出，但你硬是靠經驗把交期跟品質穩住了！';
+            let badge = '🔥';
+            let clockNote = '小幅加班';
+
+            if (gameState.stress >= 100) {
+                title = '過勞爆氣離職邊緣人';
+                subtitle = '壓力值直接破表！機台異常跟客戶催貨把你逼到差點把游標卡尺折斷。';
+                badge = '🤯';
+                clockNote = '爆肝加班中';
+            } else if (endMins <= 17 * 60 + 45 && gameState.quality >= 94 && gameState.progress >= 90) {
+                title = '傳說中的準時下班神人';
+                subtitle = '下死點調得準、公差抓得穩、排程順到不行，準時走出陽光綠化的鐵皮廠區！';
+                badge = '🏆';
+                clockNote = '準時打卡下班！';
+            } else if (gameState.quality >= 97) {
+                title = '精密公差零缺陷守護神';
+                subtitle = '不管是折彎回彈還是毛邊問題都逃不過你的法眼，全廠品質的驕傲！';
+                badge = '📐';
+                clockNote = endMins <= 18 * 60 + 15 ? '微幅加班' : '責任制加班';
+            } else if (gameState.quality < 82) {
+                title = '特採申請書撰寫大師';
+                subtitle = '雖然貨是趕出來了，但重工跟特採單寫到手軟，明天早會準備被點名！';
+                badge = '📝';
+                clockNote = '加班修毛邊';
+            }
+
+            const activeMasterName = getCharName(gameState.role.id);
+            document.getElementById('result-badge-emoji').textContent = badge;
+            document.getElementById('result-title').textContent = title;
+            document.getElementById('result-subtitle').textContent = subtitle;
+            document.getElementById('res-role').textContent = `${activeMasterName}（${gameState.role.title}）`;
+            document.getElementById('res-clockout').textContent = `${clockOutStr} (${clockNote})`;
+            document.getElementById('res-progress').textContent = `${gameState.progress}%`;
+            document.getElementById('res-quality-stress').textContent = `${gameState.quality}% / ${gameState.stress}%`;
+
+            window.latestShareText = `【鈑金沖壓24hr：鐵皮屋打工人的一天】\n出勤師傅：${activeMasterName}（${gameState.role.title}）\n獲得稱號：《${title}》${badge}\n下班時間：${clockOutStr} (${clockNote})\n交期達成：${gameState.progress}%｜出貨良率：${gameState.quality}%｜現場壓力：${gameState.stress}%\n來挑戰看看你能不能在鐵皮屋加工廠準時下班！`;
+
+            SoundFX.success();
+            document.getElementById('result-modal').classList.remove('hidden');
+        }
+
+        function copyShareText() {
+            const text = window.latestShareText || '';
+            const textarea = document.createElement('textarea');
+            textarea.value = text;
+            document.body.appendChild(textarea);
+            textarea.select();
+            try {
+                document.execCommand('copy');
+                const toast = document.getElementById('copy-toast');
+                toast.classList.remove('hidden');
+                SoundFX.click();
+                setTimeout(() => toast.classList.add('hidden'), 3000);
+            } catch (err) {
+                console.error('Copy failed', err);
+            }
+            document.body.removeChild(textarea);
+        }
+
+        function resetGame() {
+            SoundFX.click();
+            document.getElementById('result-modal').classList.add('hidden');
+            document.getElementById('start-screen').classList.remove('hidden');
+        }
+
+        // =========================================================================
+        // 9. 主動畫迴圈
+        // =========================================================================
+        function spawnWeldingSparks() {
+            const origin = new THREE.Vector3(15.5, 1.65, 2.12);
+            for (let i = 0; i < 6; i++) {
+                const spark = new THREE.Mesh(
+                    new THREE.BoxGeometry(0.06, 0.06, 0.06),
+                    new THREE.MeshBasicMaterial({ color: Math.random() > 0.4 ? 0xfbbf24 : 0xf97316 })
+                );
+                spark.position.copy(origin);
+                spark.userData = {
+                    vel: new THREE.Vector3(
+                        (Math.random() - 0.5) * 3.5,
+                        Math.random() * 2.5 + 0.5,
+                        (Math.random() - 0.2) * 3.5
+                    ),
+                    life: 0.35 + Math.random() * 0.25
+                };
+                scene.add(spark);
+                sparkParticles.push(spark);
+            }
+            if (gameState.started && !gameState.paused && playerState.pos.distanceTo(origin) < 10) {
+                SoundFX.spark();
+            }
+        }
+
+        let lastSparkBurst = 0;
+        let clockSecondAccumulator = 0;
+
+        function animate() {
+            requestAnimationFrame(animate);
+            const delta = clock.getDelta();
+            const elapsed = clock.getElapsedTime();
+
+            // 排風扇轉動
+            exhaustFans.forEach(fan => {
+                fan.mesh.rotation.z += delta * 7.5;
+            });
+
+            // 懸浮驚嘆號動畫
+            if (exclamationMesh && exclamationMesh.visible) {
+                exclamationMesh.position.y = 2.8 + Math.sin(elapsed * 5) * 0.28;
+                exclamationMesh.rotation.y += delta * 2.2;
+            }
+
+            // 異常機台紅燈閃爍
+            if (gameState.started && gameState.currentTargetZone && beaconMeshes[gameState.currentTargetZone]) {
+                const flash = Math.sin(elapsed * 10) > 0 ? 0xef4444 : 0xfbbf24;
+                beaconMeshes[gameState.currentTargetZone].color.setHex(flash);
+            }
+
+            // 點焊火花特效
+            if (elapsed - lastSparkBurst > 2.2) {
+                lastSparkBurst = elapsed;
+                spawnWeldingSparks();
+            }
+            for (let i = sparkParticles.length - 1; i >= 0; i--) {
+                const p = sparkParticles[i];
+                p.userData.life -= delta;
+                p.userData.vel.y -= 9.8 * delta;
+                p.position.addScaledVector(p.userData.vel, delta);
+                if (p.userData.life <= 0) {
+                    scene.remove(p);
+                    sparkParticles.splice(i, 1);
+                }
+            }
+
+            if (targetRing && targetRing.visible) {
+                const s = 1 + Math.sin(elapsed * 8) * 0.15;
+                targetRing.scale.set(s, s, 1);
+            }
+
+            // 上班時間平緩推進（現實每 2 秒推進遊戲 1 分鐘）
+            if (gameState.started && !gameState.paused) {
+                clockSecondAccumulator += delta;
+                if (clockSecondAccumulator >= 2.0) {
+                    clockSecondAccumulator -= 2.0;
+                    gameState.timeMinutes += 1;
+                    document.getElementById('hud-time').textContent = formatClockString(gameState.timeMinutes);
+                }
+
+                // 玩家移動
+                let moveX = 0;
+                let moveZ = 0;
+
+                if (playerState.keys.w || playerState.keys.ArrowUp) moveZ -= 1;
+                if (playerState.keys.s || playerState.keys.ArrowDown) moveZ += 1;
+                if (playerState.keys.a || playerState.keys.ArrowLeft) moveX -= 1;
+                if (playerState.keys.d || playerState.keys.ArrowRight) moveX += 1;
+
+                if (Math.abs(playerState.joyVec.x) > 0.1 || Math.abs(playerState.joyVec.y) > 0.1) {
+                    moveX = playerState.joyVec.x;
+                    moveZ = playerState.joyVec.y;
+                }
+
+                if (moveX !== 0 || moveZ !== 0) {
+                    const dir = new THREE.Vector3(moveX, 0, moveZ).normalize();
+                    playerState.pos.addScaledVector(dir, playerState.speed * delta);
+                    playerGroup.rotation.y = Math.atan2(dir.x, dir.z);
+                    targetRing.visible = false;
+                } else if (playerState.targetPos) {
+                    const diff = new THREE.Vector3().subVectors(playerState.targetPos, playerState.pos);
+                    diff.y = 0;
+                    const dist = diff.length();
+                    if (dist > 0.2) {
+                        diff.normalize();
+                        playerState.pos.addScaledVector(diff, playerState.speed * delta);
+                        playerGroup.rotation.y = Math.atan2(diff.x, diff.z);
+                    } else {
+                        playerState.targetPos = null;
+                        targetRing.visible = false;
+                    }
+                }
+
+                playerState.pos.x = THREE.MathUtils.clamp(playerState.pos.x, -22, 22);
+                playerState.pos.z = THREE.MathUtils.clamp(playerState.pos.z, -15.5, 15.5);
+                playerGroup.position.copy(playerState.pos);
+
+                if (gameState.currentTargetZone) {
+                    const targetObj = interactables[gameState.currentTargetZone];
+                    const dx = targetObj.pos.x - playerState.pos.x;
+                    const dz = targetObj.pos.z - playerState.pos.z;
+                    const angleDeg = Math.atan2(dz, dx) * (180 / Math.PI);
+                    const compassEl = document.getElementById('compass-arrow');
+                    if (compassEl) {
+                        compassEl.style.transform = `rotate(${angleDeg}deg)`;
+                    }
+
+                    const distToTarget = playerState.pos.distanceTo(targetObj.pos);
+                    const promptEl = document.getElementById('interact-prompt');
+
+                    if (distToTarget < 2.8) {
+                        gameState.nearTarget = true;
+                        document.getElementById('interact-title').textContent = `處理【${targetObj.label}】異常`;
+                        promptEl.classList.remove('hidden');
+                    } else {
+                        gameState.nearTarget = false;
+                        promptEl.classList.add('hidden');
+                    }
+                }
+            }
+
+            if (cameraRig.followPlayer && gameState.started) {
+                cameraRig.panTarget.lerp(
+                    new THREE.Vector3(playerState.pos.x, 0.5, playerState.pos.z - 1.0),
+                    0.12
+                );
+                clampCameraPanTarget();
+            }
+            updateCameraTransform(false);
+
+            renderer.render(scene, camera);
+        }
+
+        function onWindowResize() {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        }
+
+        window.onload = function () {
+            loadCharacterNames();
+            renderStartRoleCards();
+            initThree();
+        };
+    </script>
+</body>
+</html>
